@@ -1,5 +1,6 @@
 #include <iostream>
 #include <fstream>
+#include <cstdlib>
 #include <cstdio>
 #include <cerrno>
 
@@ -26,14 +27,18 @@ char* file_contents(char *path) {
         std::cout << "Failed to open the file at " << path << '\n';
         exit(1);
     }
-    std::streampos size = file_size(file);
-    // Rest of the code for reading file contents
-    // ...
-
-    return nullptr; // Replace with the appropriate return value
+    long size = file_size(file);
+    char *contents = new char[size + 1];
+    std::streamsize elements_read = file.readsome(contents, size);
+    if (elements_read != size) {
+        delete[] contents;
+        return nullptr;
+    }
+    contents[size] = '\0'; 
+    return contents;
 }
 
-std::streampos file_size(std::FILE *file) {
+long file_size(std::ifstream& file) {
     if (!file) {
         return 0;
     }
@@ -43,10 +48,9 @@ std::streampos file_size(std::FILE *file) {
         return 0;
     }
     std::fseek(file, 0, SEEK_END);
-    std::streampos size = std::ftell(file);
+    long out = std::ftell(file);
     if (std::fsetpos(file, &original) != 0) {
         std::cout << "fsetpos() failed: " << errno << '\n';
     }
-
-    return size; // return original;
+    return out;
 }
