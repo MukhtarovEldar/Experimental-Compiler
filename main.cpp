@@ -48,12 +48,7 @@ char *file_contents(char *path) {
         if(std::feof(file))
             break;
     }
-    if (bytes_read < size) {
-        std::cout<<"read: "<<bytes_read<<", size: "<<size<<'\n';
-        delete[] contents;
-        return nullptr;
-    }
-    contents[size] = '\0';
+    contents[bytes_read] = '\0';
     std::fclose(file); // remember to close
     return contents;
 }
