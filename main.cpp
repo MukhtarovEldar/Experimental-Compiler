@@ -37,11 +37,19 @@ char *file_contents(char *path) {
     char *write_it = contents;
     std::size_t bytes_read = 0;
     while(bytes_read < size){
-        std::size_t bytes_read_this_iteration = std::fread(write_it, 1, size - bytes_read, file);
+        std::size_t bytes_read_this_iteration = std::fread(write_it, 1, size - bytes_read - 1, file);
+        if(std::ferror(file)){
+            std::cout<<"Error while reading: " << errno << '\n';
+            delete[] contents;
+            return nullptr;
+        }
         bytes_read += bytes_read_this_iteration;
         write_it += bytes_read_this_iteration;
+        if(std::feof(file))
+            break;
     }
     if (bytes_read < size) {
+        std::cout<<"read: "<<bytes_read<<", size: "<<size<<'\n';
         delete[] contents;
         return nullptr;
     }
