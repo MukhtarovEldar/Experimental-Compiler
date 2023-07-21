@@ -1,10 +1,10 @@
 func Add: int(val1), int(val2))
-	return(val1+val2).
+	return(val1 + val2).
 
-c, d : int
-c = 1, d = 3
-e = 2 : int;
-s = "Hello World!" : str
+int(c, d)
+int(c = 1), int(d = 3)
+int(e = 2)
+str(s = "Hello World!")
 
-input(a,b)
-output(add(a,b)).
+input(a, b)
+output(Add(a, b)).
