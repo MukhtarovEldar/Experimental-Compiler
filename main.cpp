@@ -1,6 +1,7 @@
 #include <iostream>
 #include <fstream>
 #include <cstdlib>
+#include <cstring>
 
 typedef enum ErrorType {
     ERROR_NONE = 0,
@@ -20,19 +21,15 @@ Error ok = {ERROR_NONE, nullptr};
 #define ERROR_CREATE(n, t, msg)   (n) = { (t), (msg) } 
 #define ERROR_PREP(n, t, message) (n).type = (t); (n).msg = (message)
 
+const char *whitespace = " \r\n"; 
+const char *delimiters = " \r\n"; 
+
 long fileSize(std::fstream &file);
 void displayUsage(char **argv);
 char *FileContents(char *path);
 void printError(Error err);
-
-Error lex(char *source, char **beg, char **end){
-    Error err = ok;
-    if(!source){
-        ERROR_PREP(err, ERROR_ARGUMENTS, "Can not lex empty source!");
-        return err;
-    }
-    return err;
-}
+Error lex(char *source, char **beg, char **end);
+Error parseExpr(char *source);
 
 int main(int argc, char **argv) {
     if (argc < 2) {
@@ -42,12 +39,13 @@ int main(int argc, char **argv) {
     char *path = argv[1];
     char *contents = FileContents(path);
     if (contents) {
-        std::cout << "Contents of " << path << ":\n---\n" << contents << "\n---\n";
+        // std::cout << "Contents of " << path << ":\n---\n" << contents << "\n---\n";
+        Error err = parseExpr(contents);
+        printError(err);
+        
         delete[] contents;
     }
 
-    Error err = lex(nullptr, nullptr, nullptr);
-    printError(err);
     return 0;
 }
 
@@ -113,4 +111,28 @@ void printError(Error err){
     putchar('\n');
     if(err.msg)
         std::cout<<"     : "<<err.msg<<'\n';
+}
+
+Error lex(char *source, char **beg, char **end){
+    Error err = ok;
+    if(!source || !beg || !end){
+        ERROR_PREP(err, ERROR_ARGUMENTS, "Can not lex empty source!");
+        return err;
+    }
+    *beg = source;
+    *beg += strspn(*beg, whitespace);
+    *end = *beg;
+    *end += strspn(*beg, delimiters);
+    return err;
+}
+
+Error parseExpr(char *source){
+    char *beg = source, *end = source;
+    Error err = ok;
+    while((err = lex(end, &beg, &end)).type == ERROR_NONE){
+        if(end - beg == 0)
+            break;
+        std::cout<<"lexed: "<< end - beg << beg;
+    }
+    return err;
 }
