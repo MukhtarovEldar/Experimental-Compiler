@@ -89,26 +89,24 @@ void printError(Error err){
     std::cout<<"ERROR: ";
     switch(err.type){
         default:
-            std::cout<<"Unknown error type!";
+            std::cout<<"Error type not recognized!";
             break;
         case ERROR_TODO:
-            std::cout<<"TODO (not implemented)";
+            std::cout<<"Error to be implemented.";
             break;
         case ERROR_SYNTAX:
-            std::cout<<"Invalid syntax";
+            std::cout<<"Invalid syntax!";
             break;
         case ERROR_TYPE:
-            std::cout<<"Mismathed types";
+            std::cout<<"Mismathced types!";
             break;
         case ERROR_ARGUMENTS:
-            std::cout<<"Invalid arguments";
+            std::cout<<"Invalid arguments!";
             break;
         case ERROR_GENERIC:
             break;
-        case ERROR_NONE:
-            break;
     }
-    putchar('\n');
+    std::putchar('\n');
     if(err.msg)
         std::cout<<"     : "<<err.msg<<'\n';
 }
@@ -128,6 +126,7 @@ Error lex(char *source, char **beg, char **end){
 
 Error parseExpr(char *source){
     char *beg = source, *end = source;
+    char *prev_token = source;
     Error err = ok;
     while((err = lex(end, &beg, &end)).type == ERROR_NONE){
         if(end - beg == 0)
