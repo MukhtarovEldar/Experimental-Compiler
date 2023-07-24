@@ -8,7 +8,7 @@ endif()
 set(CMAKE_EXPORT_COMPILE_COMMANDS on)
 set(CMAKE_CXX_STANDARD_14) # CXX instead of C, 14 instead of 11
 
-project(Experimental)
+project(Experimental-Compiler)
 
 add_executable(
     func
