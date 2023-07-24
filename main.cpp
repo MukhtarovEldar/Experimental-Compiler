@@ -20,6 +20,33 @@ typedef struct Error {
     const char* msg;
 } Error;
 
+typedef struct Node{
+    enum NodeType {
+        NODE_TYPE_NONE,
+        NODE_TYPE_INTEGER,
+        NODE_TYPE_MAX,
+    } type;
+    union NodeValue{
+        long long integer;
+    } value;
+    struct Node *children[3];
+    
+} Node;
+
+#define nonep(node) ((node).type == NODE_TYPE_NONE)
+#define integerp(node) ((node).type == NODE_TYPE_INTEGER)
+
+typedef struct Binding{
+    std::string id;
+    Node *value;
+    struct Binding *next;
+} Binding;
+
+typedef struct Environement{
+    struct Environment *parent;
+    Binding *bind;
+} Environement;
+
 Error ok = {ERROR_NONE, nullptr};
 #define ERROR_CREATE(n, t, msg)   (n) = { (t), (msg) } 
 #define ERROR_PREP(n, t, message) (n).type = (t); (n).msg = (message)
@@ -43,7 +70,8 @@ int main(int argc, char **argv) {
     char *contents = FileContents(path);
     if (contents) {
         // std::cout << "Contents of " << path << ":\n---\n" << contents << "\n---\n";
-        Error err = parseExpr(contents);
+        Node expression;
+        Error err = parseExpr(contents, &expression);
         printError(err);
         
         delete[] contents;
@@ -134,33 +162,11 @@ Error lex(char *source, char **beg, char **end){
     return err;
 }
 
-typedef struct Node{
-    enum NodeType {
-        NODE_TYPE_NONE,
-        NODE_TYPE_INTEGER,
-        NODE_TYPE_MAX,
-    } type;
-    union NodeValue{
-        long long integer;
-    } value;
-} Node;
-
-typedef struct Binding{
-    std::string id;
-    Node *value;
-    struct Binding *next;
-} Binding;
-
-typedef struct Environement{
-    struct Environment *parent;
-    Binding *bind;
-} Environement;
-
 void EnvironmentSet(){
-    
+
 }
 
-Error parseExpr(char *source){
+Error parseExpr(char *source, Node *result ){
     char *beg = source, *end = source;
     // char *prev_token = source;
     Error err = ok;
