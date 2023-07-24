@@ -1,7 +1,9 @@
 #include <iostream>
+#include <string>
 #include <fstream>
 #include <cstdlib>
 #include <cstring>
+#include <cassert>
 
 typedef enum ErrorType {
     ERROR_NONE = 0,
@@ -10,6 +12,7 @@ typedef enum ErrorType {
     ERROR_TODO,
     ERROR_GENERIC,
     ERROR_SYNTAX,
+    ERROR_MAX,
 } ErrorType;
 
 typedef struct Error {
@@ -87,6 +90,7 @@ void printError(Error err){
     if(err.type == ERROR_NONE)
         return;
     std::cout<<"ERROR: ";
+    assert(ERROR_MAX == 6);
     switch(err.type){
         default:
             std::cout<<"Error type not recognized!";
@@ -130,9 +134,35 @@ Error lex(char *source, char **beg, char **end){
     return err;
 }
 
+typedef struct Node{
+    enum NodeType {
+        NODE_TYPE_NONE,
+        NODE_TYPE_INTEGER,
+        NODE_TYPE_MAX,
+    } type;
+    union NodeValue{
+        long long integer;
+    } value;
+} Node;
+
+typedef struct Binding{
+    std::string id;
+    Node *value;
+    struct Binding *next;
+} Binding;
+
+typedef struct Environement{
+    struct Environment *parent;
+    Binding *bind;
+} Environement;
+
+void EnvironmentSet(){
+    
+}
+
 Error parseExpr(char *source){
     char *beg = source, *end = source;
-    char *prev_token = source;
+    // char *prev_token = source;
     Error err = ok;
     while((err = lex(end, &beg, &end)).type == ERROR_NONE){
         if(end - beg == 0)
