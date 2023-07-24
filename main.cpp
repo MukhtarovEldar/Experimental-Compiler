@@ -22,7 +22,7 @@ Error ok = {ERROR_NONE, nullptr};
 #define ERROR_PREP(n, t, message) (n).type = (t); (n).msg = (message)
 
 const char *whitespace = " \r\n"; 
-const char *delimiters = " \r\n"; 
+const char *delimiters = " \r\n,():"; 
 
 long fileSize(std::fstream &file);
 void displayUsage(char **argv);
@@ -120,7 +120,13 @@ Error lex(char *source, char **beg, char **end){
     *beg = source;
     *beg += strspn(*beg, whitespace);
     *end = *beg;
+    if(**end == '\0'){
+        return err;
+    }
     *end += strspn(*beg, delimiters);
+    if(*end == *beg ){
+        *end += 1;
+    }
     return err;
 }
 
