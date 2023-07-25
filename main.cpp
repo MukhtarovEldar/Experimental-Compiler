@@ -24,17 +24,22 @@ typedef struct Node{
     enum NodeType {
         NODE_TYPE_NONE,
         NODE_TYPE_INTEGER,
+        NODE_TYPE_PROGRAM,
         NODE_TYPE_MAX,
     } type;
     union NodeValue{
         long long integer;
     } value;
-    struct Node *children[3];
+    struct Node **children;
     
 } Node;
 
 #define nonep(node) ((node).type == NODE_TYPE_NONE)
 #define integerp(node) ((node).type == NODE_TYPE_INTEGER)
+
+typedef struct Program{
+    Node *root;
+} Program;
 
 typedef struct Binding{
     std::string id;
@@ -42,10 +47,10 @@ typedef struct Binding{
     struct Binding *next;
 } Binding;
 
-typedef struct Environement{
+typedef struct Environment{
     struct Environment *parent;
     Binding *bind;
-} Environement;
+} Environment;
 
 Error ok = {ERROR_NONE, nullptr};
 #define ERROR_CREATE(n, t, msg)   (n) = { (t), (msg) } 
@@ -59,7 +64,7 @@ void displayUsage(char **argv);
 char *FileContents(char *path);
 void printError(Error err);
 Error lex(char *source, char **beg, char **end);
-Error parseExpr(char *source);
+Error parseExpr(char *source, Node *result );
 
 int main(int argc, char **argv) {
     if (argc < 2) {
@@ -155,25 +160,25 @@ Error lex(char *source, char **beg, char **end){
     if(**end == '\0'){
         return err;
     }
-    *end += strspn(*beg, delimiters);
+    *end += strcspn(*beg, delimiters);
     if(*end == *beg ){
         *end += 1;
     }
     return err;
 }
 
-void EnvironmentSet(){
+// void EnvironmentSet(){
 
-}
+// }
 
 Error parseExpr(char *source, Node *result ){
     char *beg = source, *end = source;
     // char *prev_token = source;
     Error err = ok;
     while((err = lex(end, &beg, &end)).type == ERROR_NONE){
-        if(end - beg == 0)
+        if(end == beg)
             break;
-        std::cout<<"lexed: "<< end - beg << beg;
+        std::cout << "lexed: " << std::string(beg, end - beg) << '\n';
     }
     return err;
 }
