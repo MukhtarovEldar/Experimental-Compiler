@@ -21,14 +21,15 @@ struct Error {
     std::string msg;
 };
 
-struct Node {
-    enum class NodeType {
+enum class NodeType {
         NODE_TYPE_NONE,
         NODE_TYPE_INTEGER,
         NODE_TYPE_PROGRAM,
         NODE_TYPE_MAX,
-    } type;
+};
 
+struct Node {
+    NodeType type;
     union NodeValue {
         long long integer;
     } value;
@@ -171,7 +172,7 @@ void printError(Error err) {
 
 Token* tokenCreate() {
     Token* token = new Token;
-    assert(token && "Can not allocate memory for token!");
+    assert(token && "Could not allocate memory for token!");
     token->begin = nullptr;
     token->end = nullptr;
     token->next = nullptr;
@@ -227,7 +228,7 @@ void deleteNode(Node *root){
 Error lex(char* source, Token *token) {
     Error err = ok;
     if (!source || !token) {
-        ERROR_PREP(err, ErrorType::ERROR_ARGUMENTS, "Can not lex empty source!");
+        ERROR_PREP(err, ErrorType::ERROR_ARGUMENTS, "Could not lex empty source!");
         return err;
     }
     token->begin = source;
@@ -244,57 +245,90 @@ Error lex(char* source, Token *token) {
 }
 
 Error parseExpr(char* source, Node* result) {
-    Token *tokens = nullptr;
-    Token *token_it = tokens;
+    size_t token_cnt = 0;
     Token current_token;
     current_token.next = nullptr;
     current_token.begin = source;
-    current_token.end       = source;
-    // char *prev_token = source;
+    current_token.end   = source;
     Error err = ok;
+
+    Node *root = new Node{};
+    assert(root && "Could not allocate memory for AST Root.");
+    root->type = NodeType::NODE_TYPE_PROGRAM;
+
+    Node working_node;
+    working_node.children   = nullptr;
+    working_node.next_child = nullptr;
+    working_node.type = NodeType::NODE_TYPE_NONE;
+    working_node.value.integer = 0;
     while ((err = lex(current_token.end, &current_token)).type == ErrorType::ERROR_NONE) {
-        if (current_token.end == current_token.begin)
+        size_t token_length = current_token.end - current_token.begin; 
+        if(token_length == 0)
             break;
-
-        if (tokens) {
-            token_it->next = tokenCreate();
-            std::memcpy(token_it->next, &current_token, sizeof(Token));
-            token_it = token_it->next;
-        } else {
-            tokens = tokenCreate();
-            std::memcpy(tokens, &current_token, sizeof(Token));
-            token_it = tokens;
+        if(token_length == 1 && *(current_token.begin) == '0'){
+            working_node.type = NodeType::NODE_TYPE_INTEGER;
+            working_node.value.integer = 0;
+            std::cout << "Zero Integer!\n";
         }
-
-        // Token *rest_of_tokens = tokens;
-        // tokens = tokenCreate();
-        // std::memcpy(tokens, &current_token, sizeof(Token));
-        // tokens->next = rest_of_tokens;
-
-        std::cout << "lexed: " << std::string(current_token.begin, current_token.end - current_token.begin) << '\n';
-    }
-
-    printTokens(tokens);
-
-    Node *root = new Node;
-    std::memset(root, 0, sizeof(root));
-    assert(root && "Can not allocate memory for AST Node!");
-    token_it = tokens;
-    while(token_it){
-        if(tokenStringEqual(":", token_it)){
-            if(token_it->next && tokenStringEqual("=",token_it->next)){
-                std::cout << "Found assignment.\n";
-            } else if(tokenStringEqual("integer", token_it->next)){
-                std::cout << "Found a variable declaration.\n";
-            }
+        if((working_node.value.integer = strtoll(current_token.begin, nullptr, 10)) != 0){
+            working_node.type = NodeType::NODE_TYPE_INTEGER;
+            std::cout << "Found integer " << working_node.value.integer << "!\n";
         }
-
-        token_it = token_it->next;
+        if(tokenStringEqual(":", &current_token)){
+            Token equals;
+        }
     }
+    // while ((err = lex(current_token.end, &current_token)).type == ErrorType::ERROR_NONE) {
+    //     if (current_token.end == current_token.begin)
+    //         break;
 
-    deleteTokens(tokens);
+    //     if (tokens) {
+    //         token_it->next = tokenCreate();
+    //         std::memcpy(token_it->next, &current_token, sizeof(Token));
+    //         token_it = token_it->next;
+    //     } else {
+    //         tokens = tokenCreate();
+    //         std::memcpy(tokens, &current_token, sizeof(Token));
+    //         token_it = tokens;
+    //     }
 
-    deleteNode(root);
+    //     // Token *rest_of_tokens = tokens;
+    //     // tokens = tokenCreate();
+    //     // std::memcpy(tokens, &current_token, sizeof(Token));
+    //     // tokens->next = rest_of_tokens;
+
+    //     token_cnt++;
+    // }
+
+    // printTokens(tokens);
+
+    // Token *token_arr = new Token[token_cnt](); 
+    // assert(token_arr && "Could not allocate memory.");
+    // token_it = tokens;
+    // while(token_it){
+
+    // }
+
+
+    // Node *root = new Node;
+    // std::memset(root, 0, sizeof(root));
+    // assert(root && "Could not allocate memory for AST Node!");
+    // token_it = tokens;
+    // while(token_it){
+    //     if(tokenStringEqual(":", token_it)){
+    //         if(token_it->next && tokenStringEqual("=",token_it->next)){
+    //             std::cout << "Found assignment.\n";
+    //         } else if(tokenStringEqual("integer", token_it->next)){
+    //             std::cout << "Found a variable declaration.\n";
+    //         }
+    //     }
+
+    //     token_it = token_it->next;
+    // }
+
+    // deleteTokens(tokens);
+
+    // deleteNode(root);
 
     return err;
 }
