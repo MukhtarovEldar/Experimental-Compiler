@@ -78,6 +78,9 @@ char *FileContents(char *path);
 void printError(Error err);
 Error lex(char *source, char **beg, char **end);
 Error parseExpr(char *source, Node *result );
+Token *tokenCreate();
+void printTokens(Token *root);
+void deleteTokens(Token *root);
 
 int main(int argc, char **argv) {
     if (argc < 2) {
@@ -163,6 +166,36 @@ void printError(Error err) {
 
 // }
 
+Token* tokenCreate() {
+    Token* token = new Token;
+    assert(token && "Can not allocate memory for token!");
+    token->beginning = nullptr;
+    token->end = nullptr;
+    token->next = nullptr;
+    return token;
+}
+
+void printTokens(Token *root) {
+    Token *tmp = root;
+    size_t cnt = 1; 
+    while (tmp) {
+        std::cout << "Token " << cnt << ": "; 
+        if (tmp->beginning && tmp->end)
+            std::cout << std::string(tmp->beginning, tmp->end - tmp->beginning);
+        std::cout << '\n';
+        tmp = tmp->next;
+        cnt++;
+    }
+}
+
+void deleteTokens(Token *root) {
+    while (root) {
+        Token *current_token = root;
+        root = root->next;
+        delete current_token;
+    }
+}
+
 Error lex(char* source, Token *token) {
     Error err = ok;
     if (!source || !token) {
@@ -183,16 +216,47 @@ Error lex(char* source, Token *token) {
 }
 
 Error parseExpr(char* source, Node* result) {
-    Token token;
-    token.next = nullptr;
-    token.beginning = source;
-    token.end       = source;
+    Token *tokens = nullptr;
+    Token *token_it = tokens;
+    Token current_token;
+    current_token.next = nullptr;
+    current_token.beginning = source;
+    current_token.end       = source;
     // char *prev_token = source;
     Error err = ok;
-    while ((err = lex(token.end, &token)).type == ErrorType::ERROR_NONE) {
-        if (token.end == token.beginning)
+    while ((err = lex(current_token.end, &current_token)).type == ErrorType::ERROR_NONE) {
+        if (current_token.end == current_token.beginning)
             break;
-        std::cout << "lexed: " << std::string(token.beginning, token.end - token.beginning) << '\n';
+
+        if (tokens) {
+            token_it->next = tokenCreate();
+            std::memcpy(token_it->next, &current_token, sizeof(Token));
+            token_it = token_it->next;
+        } else {
+            tokens = tokenCreate();
+            std::memcpy(tokens, &current_token, sizeof(Token));
+            token_it = tokens;
+        }
+
+        // Token *rest_of_tokens = tokens;
+        // tokens = tokenCreate();
+        // std::memcpy(tokens, &current_token, sizeof(Token));
+        // tokens->next = rest_of_tokens;
+
+        std::cout << "lexed: " << std::string(current_token.beginning, current_token.end - current_token.beginning) << '\n';
     }
+
+    printTokens(tokens);
+
+    Node *root = new Node;
+    std::memset(root, 0, sizeof(root));
+    assert(root && "Can not allocate memory for AST Node!");
+    token_it = tokens;
+    while(token_it){
+        token_it = token_it->next;
+    }
+
+    deleteTokens(tokens);
+
     return err;
 }
