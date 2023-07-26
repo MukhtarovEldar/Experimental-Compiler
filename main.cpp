@@ -33,7 +33,8 @@ struct Node {
         long long integer;
     } value;
 
-    std::vector<Node*> children;
+    Node *children;
+    Node *next_child;
 
     bool isNone() const {
         return type == NodeType::NODE_TYPE_NONE;
@@ -67,7 +68,7 @@ const char *whitespace = " \r\n";
 const char *delimiters = " \r\n,():"; 
 
 struct Token{
-    char *beginning;
+    char *begin;
     char *end;
     Token *next;
 };
@@ -81,6 +82,8 @@ Error parseExpr(char *source, Node *result );
 Token *tokenCreate();
 void printTokens(Token *root);
 void deleteTokens(Token *root);
+bool tokenStringEqual(char *string, Token *token);
+void deleteNode(Node *root);
 
 int main(int argc, char **argv) {
     if (argc < 2) {
@@ -157,7 +160,7 @@ void printError(Error err) {
         case ErrorType::ERROR_GENERIC:
             break;
     }
-    std::putchar('\n');
+    std::cout << '\n';
     if (!err.msg.empty())
         std::cout << "     : " << err.msg << '\n';
 }
@@ -169,7 +172,7 @@ void printError(Error err) {
 Token* tokenCreate() {
     Token* token = new Token;
     assert(token && "Can not allocate memory for token!");
-    token->beginning = nullptr;
+    token->begin = nullptr;
     token->end = nullptr;
     token->next = nullptr;
     return token;
@@ -180,8 +183,8 @@ void printTokens(Token *root) {
     size_t cnt = 1; 
     while (tmp) {
         std::cout << "Token " << cnt << ": "; 
-        if (tmp->beginning && tmp->end)
-            std::cout << std::string(tmp->beginning, tmp->end - tmp->beginning);
+        if (tmp->begin && tmp->end)
+            std::cout << std::string(tmp->begin, tmp->end - tmp->begin);
         std::cout << '\n';
         tmp = tmp->next;
         cnt++;
@@ -196,20 +199,45 @@ void deleteTokens(Token *root) {
     }
 }
 
+bool tokenStringEqual(const char* string, Token *token){
+    if(!string || !token) return false;
+    char *beg = token->begin;
+    while(*string && token->begin < token->end){
+        if(*string != *beg)
+            return false;
+        string++;
+        beg++;
+    }
+    return true;
+}
+
+void deleteNode(Node *root){
+    if(!root)
+        return;
+    Node *child = root->children;
+    Node *next_child = nullptr;
+    while(child){
+        next_child = child->next_child;
+        deleteNode(child);
+        child = child->next_child;
+    }
+    delete root;
+}
+
 Error lex(char* source, Token *token) {
     Error err = ok;
     if (!source || !token) {
         ERROR_PREP(err, ErrorType::ERROR_ARGUMENTS, "Can not lex empty source!");
         return err;
     }
-    token->beginning = source;
-    token->beginning += strspn(token->beginning, whitespace);
-    token->end = token->beginning;
+    token->begin = source;
+    token->begin += strspn(token->begin, whitespace);
+    token->end = token->begin;
     if (*(token->end) == '\0') {
         return err;
     }
-    token->end += strcspn(token->beginning, delimiters);
-    if (token->end == token->beginning) {
+    token->end += strcspn(token->begin, delimiters);
+    if (token->end == token->begin) {
         token->end += 1;
     }
     return err;
@@ -220,12 +248,12 @@ Error parseExpr(char* source, Node* result) {
     Token *token_it = tokens;
     Token current_token;
     current_token.next = nullptr;
-    current_token.beginning = source;
+    current_token.begin = source;
     current_token.end       = source;
     // char *prev_token = source;
     Error err = ok;
     while ((err = lex(current_token.end, &current_token)).type == ErrorType::ERROR_NONE) {
-        if (current_token.end == current_token.beginning)
+        if (current_token.end == current_token.begin)
             break;
 
         if (tokens) {
@@ -243,7 +271,7 @@ Error parseExpr(char* source, Node* result) {
         // std::memcpy(tokens, &current_token, sizeof(Token));
         // tokens->next = rest_of_tokens;
 
-        std::cout << "lexed: " << std::string(current_token.beginning, current_token.end - current_token.beginning) << '\n';
+        std::cout << "lexed: " << std::string(current_token.begin, current_token.end - current_token.begin) << '\n';
     }
 
     printTokens(tokens);
@@ -253,10 +281,20 @@ Error parseExpr(char* source, Node* result) {
     assert(root && "Can not allocate memory for AST Node!");
     token_it = tokens;
     while(token_it){
+        if(tokenStringEqual(":", token_it)){
+            if(token_it->next && tokenStringEqual("=",token_it->next)){
+                std::cout << "Found assignment.\n";
+            } else if(tokenStringEqual("integer", token_it->next)){
+                std::cout << "Found a variable declaration.\n";
+            }
+        }
+
         token_it = token_it->next;
     }
 
     deleteTokens(tokens);
+
+    deleteNode(root);
 
     return err;
 }
