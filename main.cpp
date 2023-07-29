@@ -46,6 +46,42 @@ struct Node {
     }
 };
 
+void printNodeImpl(Node *node){
+    if(!node)
+        return;
+    assert(NodeType::NODE_TYPE_MAX == 3 && "printNode must handle all node types.");
+    switch(node->type){
+        default:
+            std::cout << "UNKNOWN";
+            break;
+        case NodeType::NODE_TYPE_NONE:
+            std::cout << "NONE";
+            break;
+        case NodeType::NODE_TYPE_INTEGER:
+            std::cout << "INT: " << node->value.integer;
+            break;
+        case NodeType::NODE_TYPE_PROGRAM:
+            std::cout << "PROGRAM";
+            break;
+    }
+}
+
+void printNode(Node *node, size_t indent_level){
+    if(!node)
+        return;
+    for(size_t i = 0; i < indent_level; i++){
+        std::cout << ' ';
+    }
+    printNodeImpl(node);
+    std::cout << '\n';
+    Node *child = node->children;
+    while(child){
+        printNode(child, indent_level + 4);
+        child = child->next_child;
+    }
+
+}
+
 struct Program {
     Node* root;
 };
@@ -85,6 +121,7 @@ void printTokens(Token *root);
 void deleteTokens(Token *root);
 bool tokenStringEqual(char *string, Token *token);
 void deleteNode(Node *root);
+bool parseInteger(Token *token, Node *node);
 
 int main(int argc, char **argv) {
     if (argc < 2) {
@@ -244,6 +281,20 @@ Error lex(char* source, Token *token) {
     return err;
 }
 
+bool parseInteger(Token *token, Node *node){
+    if(!token || !node)
+        return false;
+    if(token->end - token->begin == 1 && *(token->begin) == '0'){
+        node->type = NodeType::NODE_TYPE_INTEGER;
+        node->value.integer = 0;
+        // std::cout << "Zero Integer!\n";
+    } else if((node->value.integer = strtoll(token->begin, nullptr, 10)) != 0){
+        node->type = NodeType::NODE_TYPE_INTEGER;
+        // std::cout << "Found integer " << node->value.integer << "!\n";
+    }
+    return true;
+}
+
 Error parseExpr(char* source, Node* result) {
     size_t token_cnt = 0;
     Token current_token;
@@ -265,14 +316,10 @@ Error parseExpr(char* source, Node* result) {
         size_t token_length = current_token.end - current_token.begin; 
         if(token_length == 0)
             break;
-        if(token_length == 1 && *(current_token.begin) == '0'){
-            working_node.type = NodeType::NODE_TYPE_INTEGER;
-            working_node.value.integer = 0;
-            std::cout << "Zero Integer!\n";
-        }
-        if((working_node.value.integer = strtoll(current_token.begin, nullptr, 10)) != 0){
-            working_node.type = NodeType::NODE_TYPE_INTEGER;
-            std::cout << "Found integer " << working_node.value.integer << "!\n";
+        if(parseInteger(&current_token, &working_node)){
+            std::cout << "Found an integer!";
+            printNode(&working_node, 0);
+            std::cout << '\n';
         }
         if(tokenStringEqual(":", &current_token)){
             Token equals;
