@@ -51,14 +51,14 @@ struct Program {
 };
 
 struct Binding {
-    std::string id;
-    Node* value;
+    Node id;
+    Node value;
     Binding* next;
 };
 
 struct Environment {
-    Environment* parent;
-    Binding* bind;
+    Environment *parent;
+    Binding *bind;
 };
 
 Error ok = {ErrorType::ERROR_NONE, ""};
@@ -89,6 +89,10 @@ void deleteNode(Node *root);
 bool parseInteger(Token *token, Node *node);
 void printNodeImpl(Node *node);
 void printNode(Node *node, size_t indent_level);
+bool nodeCompare(Node *a, Node *b);
+void environmentSet(Environment env, Node id, Node value);
+Node environmentGet(Environment env, Node id);
+Environment *environmentCreate(Environment *parent);
 
 int main(int argc, char **argv) {
     if (argc < 2) {
@@ -170,10 +174,6 @@ void printError(Error err) {
         std::cout << "     : " << err.msg << '\n';
 }
 
-// void EnvironmentSet(){
-
-// }
-
 Token* tokenCreate() {
     Token* token = new Token;
     assert(token && "Could not allocate memory for token!");
@@ -233,10 +233,39 @@ void deleteNode(Node *root){
     delete root;
 }
 
-void printNodeImpl(Node *node){
+bool nodeCompare(Node *a, Node *b){
+    if(!a || !b){
+        if(!a && !b)
+            return true;
+        return false;
+    }
+    assert(static_cast<int>(NodeType::NODE_TYPE_MAX) == 3 && "nodeCompare() must handle all node types.");
+    if(a->type != b->type)
+        return false;
+    switch(a->type){
+        case NodeType::NODE_TYPE_NONE:
+            if(b->isNone())
+                return true;
+            return false;
+            break;
+        case NodeType::NODE_TYPE_INTEGER:
+            if(a->value.integer == b->value.integer)
+                return true;
+            return false;
+            break;
+        case NodeType::NODE_TYPE_PROGRAM:
+            break;
+    }
+    // TO-DO
+}
+
+void printNode(Node *node, size_t indent_level){
     if(!node)
         return;
-    assert(static_cast<int>(NodeType::NODE_TYPE_MAX) == 3 && "printNode must handle all node types.");
+    for(size_t i = 0; i < indent_level; i++){
+        std::cout << ' ';
+    }
+    assert(static_cast<int>(NodeType::NODE_TYPE_MAX) == 3 && "printNode() must handle all node types.");
     switch(node->type){
         default:
             std::cout << "UNKNOWN";
@@ -251,22 +280,44 @@ void printNodeImpl(Node *node){
             std::cout << "PROGRAM";
             break;
     }
-}
-
-void printNode(Node *node, size_t indent_level){
-    if(!node)
-        return;
-    for(size_t i = 0; i < indent_level; i++){
-        std::cout << ' ';
-    }
-    printNodeImpl(node);
     std::cout << '\n';
     Node *child = node->children;
     while(child){
         printNode(child, indent_level + 4);
         child = child->next_child;
     }
+}
 
+Environment *environmentCreate(Environment *parent){
+    Environment *env = new Environment;
+    assert(env && "Could not allocate memory for new environment.");
+    env->parent = parent;
+    env->bind = nullptr;
+    return env;
+}
+
+void environmentSet(Environment env, Node id, Node value){
+    Binding *binding = new Binding;
+    assert(binding && "Could not allocate new binding for the environment.");
+    binding->id = id;
+    binding->value = value;
+    binding->next = env.bind;
+    env.bind = binding;
+}
+
+Node environmentGet(Environment env, Node id){
+    Binding *binding_it = env.bind;
+    while(binding_it){
+        if(nodeCompare(&binding_it->id, &id))
+            return binding_it->value;
+        binding_it = binding_it->next;
+    }
+    Node value;
+    value.type = NodeType::NODE_TYPE_NONE;
+    value.children = nullptr;
+    value.next_child = nullptr;
+    value.value.integer = 0;
+    return value;
 }
 
 Error lex(char* source, Token *token) {
