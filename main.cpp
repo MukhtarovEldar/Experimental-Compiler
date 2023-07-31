@@ -22,10 +22,10 @@ struct Error {
 };
 
 enum class NodeType {
-        NODE_TYPE_NONE,
-        NODE_TYPE_INTEGER,
-        NODE_TYPE_PROGRAM,
-        NODE_TYPE_MAX,
+    NODE_TYPE_NONE,
+    NODE_TYPE_INTEGER,
+    NODE_TYPE_PROGRAM,
+    NODE_TYPE_MAX,
 };
 
 struct Node {
@@ -78,20 +78,20 @@ long fileSize(std::fstream &file);
 void displayUsage(char **argv);
 char *FileContents(char *path);
 void printError(Error err);
-Error lex(char *source, char **beg, char **end);
+Error lex(char *source, Token *token);
 Error parseExpr(char *source, Node *result );
 Token *tokenCreate();
 void printToken(Token tok);
 void printTokens(Token *root);
 void deleteTokens(Token *root);
-bool tokenStringEqual(char *string, Token *token);
+bool tokenStringEqual(const char *string, Token *token);
 void deleteNode(Node *root);
 bool parseInteger(Token *token, Node *node);
 void printNodeImpl(Node *node);
 void printNode(Node *node, size_t indent_level);
 bool nodeCompare(Node *a, Node *b);
-void environmentSet(Environment env, Node id, Node value);
-Node environmentGet(Environment env, Node id);
+void environmentSet(Environment *env, Node id, Node value);
+Node environmentGet(Environment *env, Node id);
 Environment *environmentCreate(Environment *parent);
 
 int main(int argc, char **argv) {
@@ -174,8 +174,8 @@ void printError(Error err) {
         std::cout << "     : " << err.msg << '\n';
 }
 
-Token* tokenCreate() {
-    Token* token = new Token;
+Token *tokenCreate() {
+    Token *token = new Token;
     assert(token && "Could not allocate memory for token!");
     token->begin = nullptr;
     token->end = nullptr;
@@ -228,7 +228,7 @@ void deleteNode(Node *root){
     while(child){
         next_child = child->next_child;
         deleteNode(child);
-        child = child->next_child;
+        child = next_child;
     }
     delete root;
 }
@@ -247,12 +247,10 @@ bool nodeCompare(Node *a, Node *b){
             if(b->isNone())
                 return true;
             return false;
-            break;
         case NodeType::NODE_TYPE_INTEGER:
             if(a->value.integer == b->value.integer)
                 return true;
             return false;
-            break;
         case NodeType::NODE_TYPE_PROGRAM:
             break;
     }
@@ -296,17 +294,17 @@ Environment *environmentCreate(Environment *parent){
     return env;
 }
 
-void environmentSet(Environment env, Node id, Node value){
+void environmentSet(Environment *env, Node id, Node value){
     Binding *binding = new Binding;
     assert(binding && "Could not allocate new binding for the environment.");
     binding->id = id;
     binding->value = value;
-    binding->next = env.bind;
-    env.bind = binding;
+    binding->next = env->bind;
+    env->bind = binding;
 }
 
-Node environmentGet(Environment env, Node id){
-    Binding *binding_it = env.bind;
+Node environmentGet(Environment *env, Node id){
+    Binding *binding_it = env->bind;
     while(binding_it){
         if(nodeCompare(&binding_it->id, &id))
             return binding_it->value;
@@ -382,6 +380,7 @@ Error parseExpr(char* source, Node* result) {
             err = lex(current_token.end, &current_token);
             if(err.type != ErrorType::ERROR_NONE)
                 return err;
+            // TO DO: return statement after parsing an integer 
         }else{
             std::cout << "Unrecognized token: ";
             printToken(current_token);
@@ -391,6 +390,6 @@ Error parseExpr(char* source, Node* result) {
         printNode(&working_node, 0);
         std::cout << '\n';
     }
-
+    
     return err;
 }
