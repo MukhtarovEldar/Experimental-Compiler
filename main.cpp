@@ -151,7 +151,7 @@ long fileSize(std::fstream &file) {
     }
     std::streampos original = file.tellg();
     file.seekg(0, std::ios::end);
-    long out = file.tellg();
+    std::streampos out = file.tellg();
     file.seekg(original);
     return out;
 }
