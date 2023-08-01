@@ -1,8 +1,0 @@
-[
-{
-  "directory": "C:/Users/Dilara Mukhtarova/Experimental-Compiler/bld",
-  "command": "C:\\PROGRA~1\\MIB055~1\\2022\\COMMUN~1\\VC\\Tools\\MSVC\\1436~1.325\\bin\\Hostx64\\x64\\cl.exe  /nologo /TP   /DWIN32 /D_WINDOWS /W3 /GR /EHsc /MDd /Zi /Ob0 /Od /RTC1 /FoCMakeFiles\\func.dir\\main.cpp.obj /FdCMakeFiles\\func.dir\\ /FS -c \"C:\\Users\\Dilara Mukhtarova\\Experimental-Compiler\\main.cpp\"",
-  "file": "C:/Users/Dilara Mukhtarova/Experimental-Compiler/main.cpp",
-  "output": "CMakeFiles/func.dir/main.cpp.obj"
-}
-]

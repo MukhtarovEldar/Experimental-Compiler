@@ -24,6 +24,10 @@ struct Error {
 enum class NodeType {
     NODE_TYPE_NONE,
     NODE_TYPE_INTEGER,
+    NODE_TYPE_SYMBOL,
+    NODE_TYPE_VARIABLE_DECLARATION,
+    NODE_TYPE_VARIABLE_DECLARATION_INITIALIZED,
+    NODE_TYPE_BINARY_OPERATOR,
     NODE_TYPE_PROGRAM,
     NODE_TYPE_MAX,
 };
@@ -32,6 +36,7 @@ struct Node {
     NodeType type;
     union NodeValue {
         long long integer;
+        char *symbol;
     } value;
 
     Node *children;
@@ -79,11 +84,8 @@ void displayUsage(char **argv);
 char *FileContents(char *path);
 void printError(Error err);
 Error lex(char *source, Token *token);
-Error parseExpr(char *source, Node *result );
-Token *tokenCreate();
+Error parseExpr(char* source, char **end, Node* result);
 void printToken(Token tok);
-void printTokens(Token *root);
-void deleteTokens(Token *root);
 bool tokenStringEqual(const char *string, Token *token);
 void deleteNode(Node *root);
 bool parseInteger(Token *token, Node *node);
@@ -101,10 +103,19 @@ int main(int argc, char **argv) {
     }
     char *path = argv[1];
     char *contents = FileContents(path);
+    assert(contents && "Could not allocate buffer for file contents.");
     if (contents) {
         // std::cout << "Contents of " << path << ":\n---\n" << contents << "\n---\n";
         Node expression;
-        Error err = parseExpr(contents, &expression);
+        char *contents_it = contents;
+        char *last_contents_it = nullptr;
+        Error err = ok; 
+        while ((err = parseExpr(contents_it, &contents_it, &expression)).type == ErrorType::ERROR_NONE){
+            if(contents_it == last_contents_it)
+                break;
+            printNode(&expression, 0);
+            last_contents_it = contents_it;
+        }
         printError(err);
         delete[] contents;
     }
@@ -174,38 +185,8 @@ void printError(Error err) {
         std::cout << "     : " << err.msg << '\n';
 }
 
-Token *tokenCreate() {
-    Token *token = new Token;
-    assert(token && "Could not allocate memory for token!");
-    token->begin = nullptr;
-    token->end = nullptr;
-    token->next = nullptr;
-    return token;
-}
-
 void printToken(Token tok){
     std::cout << std::string(tok.begin, tok.end - tok.begin);
-}
-
-void printTokens(Token *root) {
-    Token *tmp = root;
-    size_t cnt = 1; 
-    while (tmp) {
-        std::cout << "Token " << cnt << ": "; 
-        if (tmp->begin && tmp->end)
-            std::cout << std::string(tmp->begin, tmp->end - tmp->begin);
-        std::cout << '\n';
-        tmp = tmp->next;
-        cnt++;
-    }
-}
-
-void deleteTokens(Token *root) {
-    while (root) {
-        Token *current_token = root;
-        root = root->next;
-        delete current_token;
-    }
 }
 
 bool tokenStringEqual(const char* string, Token *token){
@@ -239,7 +220,8 @@ bool nodeCompare(Node *a, Node *b){
             return true;
         return false;
     }
-    assert(static_cast<int>(NodeType::NODE_TYPE_MAX) == 3 && "nodeCompare() must handle all node types.");
+    // assert(static_cast<int>(NodeType::NODE_TYPE_MAX) == 3 && "nodeCompare() must handle all node types."); issue with 3
+    assert(static_cast<int>(NodeType::NODE_TYPE_MAX) == 7 && "nodeCompare() must handle all node types.");
     if(a->type != b->type)
         return false;
     switch(a->type){
@@ -251,11 +233,31 @@ bool nodeCompare(Node *a, Node *b){
             if(a->value.integer == b->value.integer)
                 return true;
             return false;
-        case NodeType::NODE_TYPE_PROGRAM:
+        case NodeType::NODE_TYPE_SYMBOL:
+            if (a->value.symbol && b->value.symbol) {
+                if (strcmp(a->value.symbol, b->value.symbol) == false)
+                    return true;
+                return false;
+            } else if (!a->value.symbol && !b->value.symbol) {
+                return true;
+            }
+            return false;
+        case NodeType::NODE_TYPE_BINARY_OPERATOR:
+            printf("TODO: nodeCompare() BINARY OPERATOR\n");
             break;
-    }
-    // TO-DO
+        case NodeType::NODE_TYPE_VARIABLE_DECLARATION:
+            printf("TODO: nodeCompare() VARIABLE DECLARATION\n");
+            break;
+        case NodeType::NODE_TYPE_VARIABLE_DECLARATION_INITIALIZED:
+            printf("TODO: nodeCompare() VARIABLE DECLARATION INITIALIZED\n");
+            break;
+        case NodeType::NODE_TYPE_PROGRAM:
+            printf("TODO: Compare two programs.\n");
+            break;
+        }
+    return false;
 }
+
 
 void printNode(Node *node, size_t indent_level){
     if(!node)
@@ -340,10 +342,14 @@ Error lex(char* source, Token *token) {
 bool parseInteger(Token *token, Node *node){
     if(!token || !node)
         return false;
+    char *end = nullptr;
     if(token->end - token->begin == 1 && *(token->begin) == '0'){
         node->type = NodeType::NODE_TYPE_INTEGER;
         node->value.integer = 0;
-    } else if((node->value.integer = strtoll(token->begin, nullptr, 10)) != 0){
+    } else if((node->value.integer = strtoll(token->begin, &end, 10)) != 0){
+        if(end != token->end){
+            return false;
+        }
         node->type = NodeType::NODE_TYPE_INTEGER;
         // std::cout << "Found integer " << node->value.integer << "!\n";
     }
@@ -353,10 +359,9 @@ bool parseInteger(Token *token, Node *node){
     return true;
 }
 
-Error parseExpr(char* source, Node* result) {
+Error parseExpr(char* source, char **end, Node* result) {
     size_t token_cnt = 0;
     Token current_token;
-    current_token.next = nullptr;
     current_token.begin = source;
     current_token.end   = source;
     Error err = ok;
@@ -365,29 +370,31 @@ Error parseExpr(char* source, Node* result) {
     assert(root && "Could not allocate memory for AST Root.");
     root->type = NodeType::NODE_TYPE_PROGRAM;
 
-    Node working_node;
     while ((err = lex(current_token.end, &current_token)).type == ErrorType::ERROR_NONE) {
-        working_node.children   = nullptr;
-        working_node.next_child = nullptr;
-        working_node.type = NodeType::NODE_TYPE_NONE;
-        working_node.value.integer = 0;
+        *end = current_token.end;
         size_t token_length = current_token.end - current_token.begin; 
         if(token_length == 0)
             break;
-        if(parseInteger(&current_token, &working_node)){
-            Token integer;
-            memcpy(&integer,&current_token,sizeof(Token));
+        if(parseInteger(&current_token, result)){
+            Node lhs_integer = *result;
             err = lex(current_token.end, &current_token);
             if(err.type != ErrorType::ERROR_NONE)
                 return err;
             // TO DO: return statement after parsing an integer 
         }else{
+            Node symbol;
+            symbol.type = NodeType::NODE_TYPE_SYMBOL;
+            symbol.children     = nullptr;
+            symbol.next_child   = nullptr;
+            symbol.value.symbol = nullptr;
+            
             std::cout << "Unrecognized token: ";
             printToken(current_token);
             std::cout << '\n';
+            return err;
         }
-        std::cout << "Found node: ";
-        printNode(&working_node, 0);
+        std::cout << "Intermediate node: ";
+        printNode(result, 0);
         std::cout << '\n';
     }
     
