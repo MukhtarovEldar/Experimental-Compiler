@@ -1,3 +1,80 @@
-.vscode/
+# Prerequisites
+*.d
+
+# Compiled Object files
+*.slo
+*.lo
 *.o
+*.obj
+
+# Precompiled Headers
+*.gch
+*.pch
+
+# Compiled Dynamic libraries
+*.so
+*.dylib
+*.dll
+
+# Fortran module files
+*.mod
+*.smod
+
+# Compiled Static libraries
+*.lai
+*.la
+*.a
+*.lib
+
+# Executables
+*.exe
+*.out
+*.app
+
+# C++ build artifacts
+*.o
+*.obj
+*.exe
+*.dll
+*.out
+*.pdb
+*.pdb.lock
+*.ilk
+*.idb
+
+# C++ Precompiled Headers
+*.gch
+*.pch
+
+# C++ generated files
+*.cpp~
+*.hpp~
+*_gen.cpp
+*_gen.hpp
+
+# C++ libraries and dependencies
+/lib/
+/lib64/
+/bin/
+/build/
+
+# Visual Studio specific files
+*.vscode/
+*.sdf
+*.opensdf
+*.suo
+*.user
+*.vcxproj
+*.vcxproj.filters
+*.vcxproj.user
+
+# CMake specific files
+/CMakeFiles/
+/CMakeCache.txt
+/CMakeScripts/
+/CMakeTargets/
+/CMakeCache/
+
+# Compiled output files
+output/
 test/
