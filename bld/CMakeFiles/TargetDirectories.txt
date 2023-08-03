@@ -1,3 +1,0 @@
-C:/Users/Dilara Mukhtarova/Experimental-Compiler/bld/CMakeFiles/func.dir
-C:/Users/Dilara Mukhtarova/Experimental-Compiler/bld/CMakeFiles/ALL_BUILD.dir
-C:/Users/Dilara Mukhtarova/Experimental-Compiler/bld/CMakeFiles/ZERO_CHECK.dir
