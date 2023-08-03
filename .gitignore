@@ -68,13 +68,7 @@
 *.vcxproj.filters
 *.vcxproj.user
 
-# CCache
-.cache
-
 # CMake specific files
-/bld
-/bld-*
-/build
 /CMakeFiles/
 /CMakeCache.txt
 /CMakeScripts/
