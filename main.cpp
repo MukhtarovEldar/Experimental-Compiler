@@ -7,13 +7,13 @@
 #include <vector>
 
 enum class ErrorType {
-    ERROR_NONE = 0,
-    ERROR_TYPE,
-    ERROR_ARGUMENTS,
-    ERROR_TODO,
-    ERROR_GENERIC,
-    ERROR_SYNTAX,
-    ERROR_MAX,
+    NONE = 0,
+    TYPE,
+    ARGUMENTS,
+    TODO,
+    GENERIC,
+    SYNTAX,
+    MAX,
 };
 
 struct Error {
@@ -22,14 +22,14 @@ struct Error {
 };
 
 enum class NodeType {
-    NODE_TYPE_NONE,
-    NODE_TYPE_INTEGER,
-    NODE_TYPE_SYMBOL,
-    NODE_TYPE_VARIABLE_DECLARATION,
-    NODE_TYPE_VARIABLE_DECLARATION_INITIALIZED,
-    NODE_TYPE_BINARY_OPERATOR,
-    NODE_TYPE_PROGRAM,
-    NODE_TYPE_MAX,
+    NONE,
+    INTEGER,
+    SYMBOL,
+    VARIABLE_DECLARATION,
+    VARIABLE_DECLARATION_INITIALIZED,
+    BINARY_OPERATOR,
+    PROGRAM,
+    MAX
 };
 
 struct Node {
@@ -43,13 +43,18 @@ struct Node {
     Node *next_child;
 
     bool isNone() const {
-        return type == NodeType::NODE_TYPE_NONE;
+        return type == NodeType::NONE;
     }
 
     bool isInteger() const {
-        return type == NodeType::NODE_TYPE_INTEGER;
+        return type == NodeType::INTEGER;
+    }
+
+    bool isSymbol() const {
+        return type == NodeType::SYMBOL;
     }
 };
+
 
 struct Program {
     Node* root;
@@ -58,7 +63,7 @@ struct Program {
 struct Binding {
     Node id;
     Node value;
-    Binding* next;
+    Binding *next;
 };
 
 struct Environment {
@@ -66,7 +71,7 @@ struct Environment {
     Binding *bind;
 };
 
-Error ok = {ErrorType::ERROR_NONE, ""};
+Error ok = {ErrorType::NONE, ""};
 #define ERROR_CREATE(n, t, msg)   (n) = { (t), (msg) } 
 #define ERROR_PREP(n, t, message) (n).type = (t); (n).msg = (message)
 
@@ -79,7 +84,7 @@ struct Token{
     Token *next;
 };
 
-long fileSize(std::fstream &file);
+std::streamoff fileSize(std::fstream &file);
 void displayUsage(char **argv);
 char *FileContents(char *path);
 void printError(Error err);
@@ -107,10 +112,11 @@ int main(int argc, char **argv) {
     if (contents) {
         // std::cout << "Contents of " << path << ":\n---\n" << contents << "\n---\n";
         Node expression;
+        memset(&expression, 0, sizeof(Node));
         char *contents_it = contents;
         char *last_contents_it = nullptr;
-        Error err = ok; 
-        while ((err = parseExpr(contents_it, &contents_it, &expression)).type == ErrorType::ERROR_NONE){
+        Error err = ok;
+        while ((err = parseExpr(contents_it, &contents_it, &expression)).type == ErrorType::NONE){
             if(contents_it == last_contents_it)
                 break;
             printNode(&expression, 0);
@@ -133,7 +139,7 @@ char *FileContents(char *path) {
         std::cout << "Failed to open the file at " << path << '\n';
         std::exit(0);
     }
-    long size = fileSize(file);
+    std::streamoff size = fileSize(file);
     char *contents = new char[size + 1];
     file.read(contents, size);
     if (!file.is_open()) {
@@ -145,39 +151,39 @@ char *FileContents(char *path) {
     return contents;
 }
 
-long fileSize(std::fstream &file) {
+std::streamoff fileSize(std::fstream &file) {
     if (!file.is_open()) {
         std::exit(0);
     }
     std::streampos original = file.tellg();
     file.seekg(0, std::ios::end);
-    std::streampos out = file.tellg();
+    std::streamoff out = file.tellg();
     file.seekg(original);
     return out;
 }
 
 void printError(Error err) {
-    if (err.type == ErrorType::ERROR_NONE)
+    if (err.type == ErrorType::NONE)
         return;
     std::cout << "ERROR: ";
-    assert(ErrorType::ERROR_MAX == ErrorType::ERROR_MAX);
+    assert(ErrorType::MAX == ErrorType::MAX);
     switch (err.type) {
         default:
             std::cout << "Error type not recognized!";
             break;
-        case ErrorType::ERROR_TODO:
+        case ErrorType::TODO:
             std::cout << "Error to be implemented.";
             break;
-        case ErrorType::ERROR_SYNTAX:
+        case ErrorType::SYNTAX:
             std::cout << "Invalid syntax!";
             break;
-        case ErrorType::ERROR_TYPE:
+        case ErrorType::TYPE:
             std::cout << "Mismathced types!";
             break;
-        case ErrorType::ERROR_ARGUMENTS:
+        case ErrorType::ARGUMENTS:
             std::cout << "Invalid arguments!";
             break;
-        case ErrorType::ERROR_GENERIC:
+        case ErrorType::GENERIC:
             break;
     }
     std::cout << '\n';
@@ -211,7 +217,26 @@ void deleteNode(Node *root){
         deleteNode(child);
         child = next_child;
     }
+    if (root->isSymbol() && root->value.symbol) {
+        delete root->value.symbol;
+    }
     delete root;
+}
+
+void nodeAddChild(Node *parent, Node *new_child){
+    if(!parent || !new_child)
+        return;
+    Node *allocated_child = new Node;
+    assert(allocated_child && "Could not allocate new child Node for AST");
+    *allocated_child = *new_child;
+    if(parent->children){
+        Node *child = parent->children;
+        while(child->next_child)
+            child = child->next_child;
+        child->next_child = allocated_child;
+    }
+    else
+        parent->children = allocated_child;
 }
 
 bool nodeCompare(Node *a, Node *b){
@@ -220,20 +245,20 @@ bool nodeCompare(Node *a, Node *b){
             return true;
         return false;
     }
-    // assert(static_cast<int>(NodeType::NODE_TYPE_MAX) == 3 && "nodeCompare() must handle all node types."); issue with 3
-    assert(static_cast<int>(NodeType::NODE_TYPE_MAX) == 7 && "nodeCompare() must handle all node types.");
+    // assert(static_cast<int>(NodeType::MAX) == 3 && "nodeCompare() must handle all node types."); issue with 3
+    assert(static_cast<int>(NodeType::MAX) == 7 && "nodeCompare() must handle all node types.");
     if(a->type != b->type)
         return false;
     switch(a->type){
-        case NodeType::NODE_TYPE_NONE:
+        case NodeType::NONE:
             if(b->isNone())
                 return true;
             return false;
-        case NodeType::NODE_TYPE_INTEGER:
+        case NodeType::INTEGER:
             if(a->value.integer == b->value.integer)
                 return true;
             return false;
-        case NodeType::NODE_TYPE_SYMBOL:
+        case NodeType::SYMBOL:
             if (a->value.symbol && b->value.symbol) {
                 if (strcmp(a->value.symbol, b->value.symbol) == false)
                     return true;
@@ -242,16 +267,16 @@ bool nodeCompare(Node *a, Node *b){
                 return true;
             }
             return false;
-        case NodeType::NODE_TYPE_BINARY_OPERATOR:
+        case NodeType::BINARY_OPERATOR:
             printf("TODO: nodeCompare() BINARY OPERATOR\n");
             break;
-        case NodeType::NODE_TYPE_VARIABLE_DECLARATION:
+        case NodeType::VARIABLE_DECLARATION:
             printf("TODO: nodeCompare() VARIABLE DECLARATION\n");
             break;
-        case NodeType::NODE_TYPE_VARIABLE_DECLARATION_INITIALIZED:
+        case NodeType::VARIABLE_DECLARATION_INITIALIZED:
             printf("TODO: nodeCompare() VARIABLE DECLARATION INITIALIZED\n");
             break;
-        case NodeType::NODE_TYPE_PROGRAM:
+        case NodeType::PROGRAM:
             printf("TODO: Compare two programs.\n");
             break;
         }
@@ -265,18 +290,33 @@ void printNode(Node *node, size_t indent_level){
     for(size_t i = 0; i < indent_level; i++){
         std::cout << ' ';
     }
-    assert(static_cast<int>(NodeType::NODE_TYPE_MAX) == 3 && "printNode() must handle all node types.");
+    assert(static_cast<int>(NodeType::MAX) == 7 && "printNode() must handle all node types.");
     switch(node->type){
         default:
             std::cout << "UNKNOWN";
             break;
-        case NodeType::NODE_TYPE_NONE:
+        case NodeType::NONE:
             std::cout << "NONE";
             break;
-        case NodeType::NODE_TYPE_INTEGER:
+        case NodeType::INTEGER:
             std::cout << "INT:" << node->value.integer;
             break;
-        case NodeType::NODE_TYPE_PROGRAM:
+        case NodeType::SYMBOL:
+            std::cout << "SYM";
+            if (node->value.symbol)
+                std::cout << ':' << node->value.symbol;
+            break;
+        case NodeType::BINARY_OPERATOR:
+            // TODO
+            break;
+        case NodeType::VARIABLE_DECLARATION:
+            // TODO
+            std::cout << "VAR_DECL:" ;
+            break;
+        case NodeType::VARIABLE_DECLARATION_INITIALIZED:
+            // TODO
+            break;
+        case NodeType::PROGRAM:
             std::cout << "PROGRAM";
             break;
     }
@@ -313,7 +353,7 @@ Node environmentGet(Environment *env, Node id){
         binding_it = binding_it->next;
     }
     Node value;
-    value.type = NodeType::NODE_TYPE_NONE;
+    value.type = NodeType::NONE;
     value.children = nullptr;
     value.next_child = nullptr;
     value.value.integer = 0;
@@ -323,7 +363,7 @@ Node environmentGet(Environment *env, Node id){
 Error lex(char* source, Token *token) {
     Error err = ok;
     if (!source || !token) {
-        ERROR_PREP(err, ErrorType::ERROR_ARGUMENTS, "Could not lex empty source!");
+        ERROR_PREP(err, ErrorType::ARGUMENTS, "Could not lex empty source!");
         return err;
     }
     token->begin = source;
@@ -344,13 +384,13 @@ bool parseInteger(Token *token, Node *node){
         return false;
     char *end = nullptr;
     if(token->end - token->begin == 1 && *(token->begin) == '0'){
-        node->type = NodeType::NODE_TYPE_INTEGER;
+        node->type = NodeType::INTEGER;
         node->value.integer = 0;
     } else if((node->value.integer = strtoll(token->begin, &end, 10)) != 0){
         if(end != token->end){
             return false;
         }
-        node->type = NodeType::NODE_TYPE_INTEGER;
+        node->type = NodeType::INTEGER;
         // std::cout << "Found integer " << node->value.integer << "!\n";
     }
     else{
@@ -366,11 +406,7 @@ Error parseExpr(char* source, char **end, Node* result) {
     current_token.end   = source;
     Error err = ok;
 
-    Node *root = new Node{};
-    assert(root && "Could not allocate memory for AST Root.");
-    root->type = NodeType::NODE_TYPE_PROGRAM;
-
-    while ((err = lex(current_token.end, &current_token)).type == ErrorType::ERROR_NONE) {
+    while ((err = lex(current_token.end, &current_token)).type == ErrorType::NONE) {
         *end = current_token.end;
         size_t token_length = current_token.end - current_token.begin; 
         if(token_length == 0)
@@ -378,15 +414,57 @@ Error parseExpr(char* source, char **end, Node* result) {
         if(parseInteger(&current_token, result)){
             Node lhs_integer = *result;
             err = lex(current_token.end, &current_token);
-            if(err.type != ErrorType::ERROR_NONE)
+            if(err.type != ErrorType::NONE)
                 return err;
-            // TO DO: return statement after parsing an integer 
-        }else{
+        } else{
             Node symbol;
-            symbol.type = NodeType::NODE_TYPE_SYMBOL;
+            symbol.type = NodeType::SYMBOL;
             symbol.children     = nullptr;
             symbol.next_child   = nullptr;
             symbol.value.symbol = nullptr;
+        
+            char *symbol_string = new char[token_length + 1];
+            assert(symbol_string && "Could not allocate memory for symbol.");
+            memcpy(symbol_string, current_token.begin, token_length);
+            symbol_string[token_length] = '\0';
+            symbol.value.symbol = symbol_string;
+
+            *result = symbol;
+
+            err = lex(current_token.end, &current_token);
+            if(err.type != ErrorType::NONE)
+                return err;
+            *end = current_token.end;
+            size_t token_length = current_token.end - current_token.begin;
+            if(token_length == 0)
+                break;
+            if(tokenStringEqual(":", &current_token)) {
+                err = lex(current_token.end, &current_token);
+                if(err.type != ErrorType::NONE)
+                    return err;
+                *end = current_token.end;
+                size_t token_length = current_token.end - current_token.begin;
+                if (token_length == 0)
+                    break;
+                if(tokenStringEqual("integer",&current_token)) {
+                    Node var_decl;
+                    var_decl.children = nullptr;
+                    var_decl.next_child = nullptr;
+                    var_decl.type = NodeType::VARIABLE_DECLARATION;
+
+                    Node type_node;
+                    memset(&type_node, 0, sizeof(Node));
+                    type_node.type = NodeType::INTEGER;
+
+
+                    nodeAddChild(&var_decl, &type_node);
+                    nodeAddChild(&var_decl, &symbol);
+
+                    *result = var_decl;
+
+                    return ok;
+                }
+            }
             
             std::cout << "Unrecognized token: ";
             printToken(current_token);
