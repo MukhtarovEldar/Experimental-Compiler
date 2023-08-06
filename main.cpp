@@ -4,7 +4,6 @@
 #include <cstdlib>
 #include <cstring>
 #include <cassert>
-#include <vector>
 
 enum class ErrorType {
     NONE = 0,
@@ -13,13 +12,34 @@ enum class ErrorType {
     TODO,
     GENERIC,
     SYNTAX,
-    MAX,
+    MAX
 };
 
 struct Error {
     ErrorType type;
     std::string msg;
+    
+    Error():
+        type(ErrorType::NONE),
+        msg("")
+    {}
+
+    Error(ErrorType t, const std::string &message): 
+        type(t),
+        msg(message)
+    {}
+
+    Error createError(ErrorType t, const std::string &message) {
+        return Error(t, message);
+    }
+
+    void prepareError(ErrorType t, const std::string &message) {
+        type = t;
+        msg = message;
+    }
 };
+
+Error ok = {ErrorType::NONE, ""};
 
 enum class NodeType {
     NONE,
@@ -34,6 +54,7 @@ enum class NodeType {
 
 struct Node {
     NodeType type;
+
     union NodeValue {
         long long integer;
         char *symbol;
@@ -55,11 +76,6 @@ struct Node {
     }
 };
 
-
-struct Program {
-    Node* root;
-};
-
 struct Binding {
     Node id;
     Node value;
@@ -70,10 +86,6 @@ struct Environment {
     Environment *parent;
     Binding *bind;
 };
-
-Error ok = {ErrorType::NONE, ""};
-#define ERROR_CREATE(n, t, msg)   (n) = { (t), (msg) } 
-#define ERROR_PREP(n, t, message) (n).type = (t); (n).msg = (message)
 
 const char *whitespace = " \r\n"; 
 const char *delimiters = " \r\n,():"; 
@@ -245,7 +257,6 @@ bool nodeCompare(Node *a, Node *b){
             return true;
         return false;
     }
-    // assert(static_cast<int>(NodeType::MAX) == 3 && "nodeCompare() must handle all node types."); issue with 3
     assert(static_cast<int>(NodeType::MAX) == 7 && "nodeCompare() must handle all node types.");
     if(a->type != b->type)
         return false;
@@ -363,7 +374,7 @@ Node environmentGet(Environment *env, Node id){
 Error lex(char* source, Token *token) {
     Error err = ok;
     if (!source || !token) {
-        ERROR_PREP(err, ErrorType::ARGUMENTS, "Could not lex empty source!");
+        err.prepareError(ErrorType::ARGUMENTS, "Could not lex empty source!");
         return err;
     }
     token->begin = source;
@@ -382,7 +393,8 @@ Error lex(char* source, Token *token) {
 bool parseInteger(Token *token, Node *node){
     if(!token || !node)
         return false;
-    char *end = nullptr;
+    char *end;
+    /// Remove the condition for 0, if that becomes redundant  
     if(token->end - token->begin == 1 && *(token->begin) == '0'){
         node->type = NodeType::INTEGER;
         node->value.integer = 0;
@@ -391,7 +403,6 @@ bool parseInteger(Token *token, Node *node){
             return false;
         }
         node->type = NodeType::INTEGER;
-        // std::cout << "Found integer " << node->value.integer << "!\n";
     }
     else{
         return false;
