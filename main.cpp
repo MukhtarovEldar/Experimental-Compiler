@@ -77,8 +77,8 @@ struct Node {
 };
 
 struct Binding {
-    Node id;
-    Node value;
+    Node *id;
+    Node *value;
     Binding *next;
 };
 
@@ -96,22 +96,23 @@ struct Token{
     Token *next;
 };
 
-std::streamoff fileSize(std::fstream &file);
 void displayUsage(char **argv);
 char *FileContents(char *path);
+std::streamoff fileSize(std::fstream &file);
 void printError(Error err);
-Error lex(char *source, Token *token);
-Error parseExpr(char* source, char **end, Node* result);
 void printToken(Token tok);
 bool tokenStringEqual(const char *string, Token *token);
 void deleteNode(Node *root);
-bool parseInteger(Token *token, Node *node);
-void printNodeImpl(Node *node);
-void printNode(Node *node, size_t indent_level);
+void nodeAddChild(Node *parent, Node *new_child);
 bool nodeCompare(Node *a, Node *b);
-void environmentSet(Environment *env, Node id, Node value);
-Node environmentGet(Environment *env, Node id);
+void printNode(Node *node, size_t indent_level);
 Environment *environmentCreate(Environment *parent);
+int environmentSet(Environment *env, Node *id, Node *value);
+bool environmentGet(Environment *env, Node *id, Node *result);
+bool environmentGetSymbol();
+Error lex(char *source, Token *token);
+bool parseInteger(Token *token, Node *node);
+Error parseExpr(char* source, char **end, Node* result);
 
 int main(int argc, char **argv) {
     if (argc < 2) {
@@ -294,7 +295,6 @@ bool nodeCompare(Node *a, Node *b){
     return false;
 }
 
-
 void printNode(Node *node, size_t indent_level){
     if(!node)
         return;
@@ -347,28 +347,49 @@ Environment *environmentCreate(Environment *parent){
     return env;
 }
 
-void environmentSet(Environment *env, Node id, Node value){
+/**
+ * @retval 0 Failure.
+ * @retval 1 Creation of new binding.
+ * @retval 2 Existing binding value overwrite (ID unused).
+ */
+int environmentSet(Environment *env, Node *id, Node *value){
+    // Over-writing an existing value
+    if (!env || !id || !value) {
+        return 0;
+    }
+    Binding *binding_it = env->bind;
+    while(binding_it){
+        if(nodeCompare(binding_it->id, id)){
+            binding_it->value = value;
+            return 2;
+        }
+        binding_it = binding_it->next;
+    }
+    
+    // Creating a new binding
     Binding *binding = new Binding;
     assert(binding && "Could not allocate new binding for the environment.");
     binding->id = id;
     binding->value = value;
     binding->next = env->bind;
     env->bind = binding;
+    return 1;
 }
 
-Node environmentGet(Environment *env, Node id){
+bool environmentGet(Environment *env, Node *id, Node *result){
     Binding *binding_it = env->bind;
     while(binding_it){
-        if(nodeCompare(&binding_it->id, &id))
-            return binding_it->value;
+        if(nodeCompare(&binding_it->id, id)){
+            *result = *binding_it->value;
+            return 1;
+        }
         binding_it = binding_it->next;
     }
-    Node value;
-    value.type = NodeType::NONE;
-    value.children = nullptr;
-    value.next_child = nullptr;
-    value.value.integer = 0;
-    return value;
+    return 0;
+}
+
+bool environmentGetSymbol() {
+    //TODO
 }
 
 Error lex(char* source, Token *token) {
