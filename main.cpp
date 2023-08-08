@@ -96,6 +96,12 @@ struct Token{
     Token *next;
 };
 
+struct parsingContext{
+    // struct parsingContext *parent;
+    Environment *types;
+    Environment *variables;
+};
+
 void displayUsage(char **argv);
 char *FileContents(char *path);
 std::streamoff fileSize(std::fstream &file);
@@ -103,16 +109,20 @@ void printError(Error err);
 void printToken(Token tok);
 bool tokenStringEqual(const char *string, Token *token);
 void deleteNode(Node *root);
+Node *nodeAllocate();
 void nodeAddChild(Node *parent, Node *new_child);
 bool nodeCompare(Node *a, Node *b);
+Node *nodeInteger(long long value);
+Node *nodeSymbol(char *symbol_string);
 void printNode(Node *node, size_t indent_level);
 Environment *environmentCreate(Environment *parent);
 int environmentSet(Environment *env, Node *id, Node *value);
 bool environmentGet(Environment *env, Node *id, Node *result);
-bool environmentGetSymbol();
+// bool environmentGetSymbol();
 Error lex(char *source, Token *token);
 bool parseInteger(Token *token, Node *node);
-Error parseExpr(char* source, char **end, Node* result);
+parsingContext *parseContextCreate();
+Error parseExpr(parsingContext *context, char* source, char **end, Node* result);
 
 int main(int argc, char **argv) {
     if (argc < 2) {
@@ -124,20 +134,25 @@ int main(int argc, char **argv) {
     assert(contents && "Could not allocate buffer for file contents.");
     if (contents) {
         // std::cout << "Contents of " << path << ":\n---\n" << contents << "\n---\n";
-        Node expression;
-        memset(&expression, 0, sizeof(Node));
+        parsingContext *context = parseContextCreate();
+        Node *program = nodeAllocate();
+        program->type = NodeType::PROGRAM;
+        Node *expression = nodeAllocate();
+        memset(expression, 0, sizeof(Node));
         char *contents_it = contents;
         char *last_contents_it = nullptr;
-        Error err = ok;
-        while ((err = parseExpr(contents_it, &contents_it, &expression)).type == ErrorType::NONE){
-            if(contents_it == last_contents_it)
-                break;
-            printNode(&expression, 0);
-            last_contents_it = contents_it;
-        }
+        Error err = parseExpr(context, contents_it, &contents_it, expression);
+        nodeAddChild(program, expression);
+        std::cout << '\n';
+
         printError(err);
+
+        printNode(program, 0);
+
+        deleteNode(program);
         delete[] contents;
     }
+
     return 0;
 }
 
@@ -236,10 +251,16 @@ void deleteNode(Node *root){
     delete root;
 }
 
+Node *nodeAllocate(){
+    Node *node = new Node();
+    assert(node && "Could not allocate memory for new AST node.");
+    return node;
+}
+
 void nodeAddChild(Node *parent, Node *new_child){
     if(!parent || !new_child)
         return;
-    Node *allocated_child = new Node;
+    Node *allocated_child = nodeAllocate();
     assert(allocated_child && "Could not allocate new child Node for AST");
     *allocated_child = *new_child;
     if(parent->children){
@@ -258,7 +279,7 @@ bool nodeCompare(Node *a, Node *b){
             return true;
         return false;
     }
-    assert(static_cast<int>(NodeType::MAX) == 7 && "nodeCompare() must handle all node types.");
+    assert(static_cast<int>(NodeType::MAX) == 3 && "nodeCompare() must handle all node types.");
     if(a->type != b->type)
         return false;
     switch(a->type){
@@ -293,6 +314,24 @@ bool nodeCompare(Node *a, Node *b){
             break;
         }
     return false;
+}
+
+Node *nodeInteger(long long value){
+    Node *integer = nodeAllocate();
+    integer->type = NodeType::INTEGER;
+    integer->value.integer = strdup(value);
+    integer->children = nullptr;
+    integer->next_child = nullptr;
+    return integer;
+}
+
+Node *nodeSymbol(char *symbol_string){
+    Node *symbol = nodeAllocate();
+    symbol->type = NodeType::SYMBOL;
+    symbol->value.symbol = strdup(symbol_string);
+    symbol->children = nullptr;
+    symbol->next_child = nullptr;
+    return symbol;
 }
 
 void printNode(Node *node, size_t indent_level){
@@ -379,7 +418,7 @@ int environmentSet(Environment *env, Node *id, Node *value){
 bool environmentGet(Environment *env, Node *id, Node *result){
     Binding *binding_it = env->bind;
     while(binding_it){
-        if(nodeCompare(&binding_it->id, id)){
+        if(nodeCompare(binding_it->id, id)){
             *result = *binding_it->value;
             return 1;
         }
@@ -388,9 +427,9 @@ bool environmentGet(Environment *env, Node *id, Node *result){
     return 0;
 }
 
-bool environmentGetSymbol() {
-    //TODO
-}
+// bool environmentGetSymbol() {
+//     //TODO
+// }
 
 Error lex(char* source, Token *token) {
     Error err = ok;
@@ -431,7 +470,16 @@ bool parseInteger(Token *token, Node *node){
     return true;
 }
 
-Error parseExpr(char* source, char **end, Node* result) {
+parsingContext *parseContextCreate(){
+    parsingContext *ctx = new parsingContext();
+    assert(ctx && "Could not allocate for parsing context.");
+    ctx->types = environmentCreate(nullptr);
+    environmentSet(*ctx->types, *nodeSymbol("integer"), *nodeInteger(0));
+    ctx->variables = environmentCreate(nullptr);
+    return ctx;
+}
+
+Error parseExpr(parsingContext *context, char* source, char **end, Node* result) {
     size_t token_cnt = 0;
     Token current_token;
     current_token.begin = source;
