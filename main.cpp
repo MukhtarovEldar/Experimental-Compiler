@@ -113,12 +113,13 @@ Node *nodeAllocate();
 void nodeAddChild(Node *parent, Node *new_child);
 bool nodeCompare(Node *a, Node *b);
 Node *nodeInteger(long long value);
-Node *nodeSymbol(char *symbol_string);
+Node *nodeSymbol(const char *symbol_string);
+Node *nodeSymbolFromBuffer(char *buffer, size_t length);
 void printNode(Node *node, size_t indent_level);
 Environment *environmentCreate(Environment *parent);
 int environmentSet(Environment *env, Node *id, Node *value);
 bool environmentGet(Environment *env, Node *id, Node *result);
-// bool environmentGetSymbol();
+bool environmentGetBySymbol();
 Error lex(char *source, Token *token);
 bool parseInteger(Token *token, Node *node);
 parsingContext *parseContextCreate();
@@ -319,18 +320,28 @@ bool nodeCompare(Node *a, Node *b){
 Node *nodeInteger(long long value){
     Node *integer = nodeAllocate();
     integer->type = NodeType::INTEGER;
-    integer->value.integer = strdup(value);
+    integer->value.integer = value;
     integer->children = nullptr;
     integer->next_child = nullptr;
     return integer;
 }
 
-Node *nodeSymbol(char *symbol_string){
+Node *nodeSymbol(const char *symbol_string){
     Node *symbol = nodeAllocate();
     symbol->type = NodeType::SYMBOL;
     symbol->value.symbol = strdup(symbol_string);
-    symbol->children = nullptr;
-    symbol->next_child = nullptr;
+    return symbol;
+}
+
+Node *nodeSymbolFromBuffer(char *buffer, size_t length) {
+    assert(buffer && "Can not create AST symbol node from NULL buffer.");
+    char *symbol_string = new char[length + 1];
+    assert(symbol_string && "Could not allocate memory for symbol string.");
+    memcpy(symbol_string, buffer, length);
+    symbol_string[length] = '\0';
+    Node *symbol = nodeAllocate();
+    symbol->type = NodeType::SYMBOL;
+    symbol->value.symbol = symbol_string;
     return symbol;
 }
 
@@ -357,14 +368,13 @@ void printNode(Node *node, size_t indent_level){
                 std::cout << ':' << node->value.symbol;
             break;
         case NodeType::BINARY_OPERATOR:
-            // TODO
+            std::cout << "BINARY OPERATOR";
             break;
         case NodeType::VARIABLE_DECLARATION:
-            // TODO
-            std::cout << "VAR_DECL:" ;
+            std::cout << "VARIABLE DECLARATION";
             break;
         case NodeType::VARIABLE_DECLARATION_INITIALIZED:
-            // TODO
+            std::cout << "VARIABLE DECLARATION INITIALIZED";
             break;
         case NodeType::PROGRAM:
             std::cout << "PROGRAM";
@@ -415,21 +425,24 @@ int environmentSet(Environment *env, Node *id, Node *value){
     return 1;
 }
 
-bool environmentGet(Environment *env, Node *id, Node *result){
-    Binding *binding_it = env->bind;
+bool environmentGet(Environment env, Node *id, Node *result){
+    Binding *binding_it = env.bind;
     while(binding_it){
         if(nodeCompare(binding_it->id, id)){
             *result = *binding_it->value;
-            return 1;
+            return true;
         }
         binding_it = binding_it->next;
     }
-    return 0;
+    return false;
 }
 
-// bool environmentGetSymbol() {
-//     //TODO
-// }
+bool environmentGetSymbol(Environment env, char *symbol, Node *result) {
+    Node *symbol_node = nodeSymbol(symbol);
+    bool status = environmentGet(env, symbol_node, result);
+    delete symbol_node;
+    return status;
+}
 
 Error lex(char* source, Token *token) {
     Error err = ok;
@@ -474,12 +487,14 @@ parsingContext *parseContextCreate(){
     parsingContext *ctx = new parsingContext();
     assert(ctx && "Could not allocate for parsing context.");
     ctx->types = environmentCreate(nullptr);
-    environmentSet(*ctx->types, *nodeSymbol("integer"), *nodeInteger(0));
+    if(environmentSet(ctx->types, nodeSymbol("integer"), nodeInteger(0)) == 0){
+        std::cout << "ERROR: Failed to set built-in type in types environment.\n";
+    }
     ctx->variables = environmentCreate(nullptr);
     return ctx;
 }
 
-Error parseExpr(parsingContext *context, char* source, char **end, Node* result) {
+Error parseExpr(parsingContext *context, char* source, char **end, Node *result) {
     size_t token_cnt = 0;
     Token current_token;
     current_token.begin = source;
@@ -496,20 +511,9 @@ Error parseExpr(parsingContext *context, char* source, char **end, Node* result)
             err = lex(current_token.end, &current_token);
             if(err.type != ErrorType::NONE)
                 return err;
+            *end = current_token.end;
         } else{
-            Node symbol;
-            symbol.type = NodeType::SYMBOL;
-            symbol.children     = nullptr;
-            symbol.next_child   = nullptr;
-            symbol.value.symbol = nullptr;
-        
-            char *symbol_string = new char[token_length + 1];
-            assert(symbol_string && "Could not allocate memory for symbol.");
-            memcpy(symbol_string, current_token.begin, token_length);
-            symbol_string[token_length] = '\0';
-            symbol.value.symbol = symbol_string;
-
-            *result = symbol;
+            Node *symbol = nodeSymbolFromBuffer(current_token.begin, token_length);
 
             err = lex(current_token.end, &current_token);
             if(err.type != ErrorType::NONE)
@@ -526,21 +530,24 @@ Error parseExpr(parsingContext *context, char* source, char **end, Node* result)
                 size_t token_length = current_token.end - current_token.begin;
                 if (token_length == 0)
                     break;
-                if(tokenStringEqual("integer",&current_token)) {
-                    Node var_decl;
-                    var_decl.children = nullptr;
-                    var_decl.next_child = nullptr;
-                    var_decl.type = NodeType::VARIABLE_DECLARATION;
+                Node *expected_type_symbol = nodeSymbolFromBuffer(current_token.begin, token_length);
+                bool status = environmentGet(*context->types, expected_type_symbol, result);
+                if(status == 0) {
+                    err.prepareError(ErrorType::TYPE, "Invalid type within variable declaration.");
+                    std::cout << "\nINVALID TYPE: " << expected_type_symbol->value.symbol << '\n';
+                    return err;
+                }else{
+                    Node *var_decl = nodeAllocate();
+                    var_decl->type = NodeType::VARIABLE_DECLARATION;
 
-                    Node type_node;
-                    memset(&type_node, 0, sizeof(Node));
-                    type_node.type = NodeType::INTEGER;
+                    Node *type_node = nodeAllocate();
+                    type_node->type = result->type;
 
+                    nodeAddChild(var_decl, type_node);
+                    nodeAddChild(var_decl, symbol);
 
-                    nodeAddChild(&var_decl, &type_node);
-                    nodeAddChild(&var_decl, &symbol);
-
-                    *result = var_decl;
+                    *result = *var_decl;
+                    delete var_decl;
 
                     return ok;
                 }
