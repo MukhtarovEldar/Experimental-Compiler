@@ -12,5 +12,14 @@ project(Experimental-Compiler)
 
 add_executable(
     func
-    main.cpp # not src/main.c
+    src/main.cpp
+    src/error.cpp
+    src/environment.cpp
+    src/file_io.cpp
+    src/parser.cpp
+)
+
+target_include_directories(
+  func
+  PUBLIC src/
 )
