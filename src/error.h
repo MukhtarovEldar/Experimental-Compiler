@@ -1,6 +1,8 @@
 #ifndef COMPILER_ERROR_H
 #define COMPILER_ERROR_H
 
+#include <string>
+
 enum class ErrorType {
     NONE = 0,
     TYPE,
