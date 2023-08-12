@@ -79,7 +79,7 @@ bool nodeCompare(Node *a, Node *b){
             return true;
         return false;
     }
-    assert(static_cast<int>(NodeType::MAX) == 7 && "nodeCompare() must handle all node types.");
+    assert(static_cast<int>(NodeType::MAX) == 8 && "nodeCompare() must handle all node types.");
     if(a->type != b->type)
         return false;
     switch(a->type){
@@ -95,22 +95,25 @@ bool nodeCompare(Node *a, Node *b){
             if (a->value.symbol && b->value.symbol) {
                 if (strcmp(a->value.symbol, b->value.symbol) == false)
                     return true;
-                return false;
+                break;
             } else if (!a->value.symbol && !b->value.symbol) {
                 return true;
             }
-            return false;
+            break;
         case NodeType::BINARY_OPERATOR:
-            printf("TODO: nodeCompare() BINARY OPERATOR\n");
+            std::cout << "TODO: nodeCompare() BINARY OPERATOR\n";
+            break;
+        case NodeType::VARIABLE_REASSIGNMENT:
+            std::cout << "TODO: node_compare() VARIABLE REASSIGNMENT\n";
             break;
         case NodeType::VARIABLE_DECLARATION:
-            printf("TODO: nodeCompare() VARIABLE DECLARATION\n");
+            std::cout << "TODO: nodeCompare() VARIABLE DECLARATION\n";
             break;
         case NodeType::VARIABLE_DECLARATION_INITIALIZED:
-            printf("TODO: nodeCompare() VARIABLE DECLARATION INITIALIZED\n");
+            std::cout << "TODO: nodeCompare() VARIABLE DECLARATION INITIALIZED\n";
             break;
         case NodeType::PROGRAM:
-            printf("TODO: Compare two programs.\n");
+            std::cout << "TODO: Compare two programs.\n";
             break;
         }
     return false;
@@ -120,8 +123,6 @@ Node *nodeInteger(long long value){
     Node *integer = nodeAllocate();
     integer->type = NodeType::INTEGER;
     integer->value.integer = value;
-    integer->children = nullptr;
-    integer->next_child = nullptr;
     return integer;
 }
 
@@ -150,7 +151,7 @@ void printNode(Node *node, size_t indent_level){
     for(size_t i = 0; i < indent_level; i++){
         std::cout << ' ';
     }
-    assert(static_cast<int>(NodeType::MAX) == 7 && "printNode() must handle all node types.");
+    assert(static_cast<int>(NodeType::MAX) == 8 && "printNode() must handle all node types.");
     switch(node->type){
         default:
             std::cout << "UNKNOWN";
@@ -165,6 +166,9 @@ void printNode(Node *node, size_t indent_level){
             std::cout << "SYM";
             if (node->value.symbol)
                 std::cout << ':' << node->value.symbol;
+            break;
+        case NodeType::VARIABLE_REASSIGNMENT:
+            std::cout << "VARIABLE REASSIGNMENT";
             break;
         case NodeType::BINARY_OPERATOR:
             std::cout << "BINARY OPERATOR";
@@ -203,6 +207,19 @@ void deleteNode(Node *root){
     delete root;
 }
 
+Error lexAdvance(Token *token, size_t *token_length, char **end) {
+    if(!token || !token_length || !end) {
+        err.createError(ErrorType::ARGUMENTS, "lexAdvance(): pointer arguments must not be null!");
+        return err;
+    }
+    Error err = lex(token->end, token);
+    *end = token->end;
+    if(err.type != ErrorType::NONE)
+        return err;
+    *token_length = token->end - token->beginning;
+    return err;
+}
+
 bool parseInteger(Token *token, Node *node){
     if(!token || !node)
         return false;
@@ -223,6 +240,35 @@ bool parseInteger(Token *token, Node *node){
     return true;
 }
 
+void nodeCopy(Node *a, Node *b) {
+    if (!a || !b)
+        return;
+    b->type = a->type;
+    switch (a->type) {
+    default:
+        b->value = a->value;
+        break;
+    case NodeType::SYMBOL:
+        b->value.symbol = strdup(a->value.symbol);
+        assert(b->value.symbol && "nodeCopy(): Could not allocate memory for new symbol");
+        break;
+    }
+    Node *child = a->children;
+    Node *child_it = nullptr;
+    while(child){
+        Node *new_child = nodeAllocate();
+        if(child_it){
+            child_it->next_child = new_child;
+            child_it = child_it->next_child;
+        }else{
+            b->children = new_child;
+            child_it = new_child;
+        }
+        nodeCopy(child, child_it);
+        child = child->next_child;
+    }
+}
+
 parsingContext *parseContextCreate(){
     parsingContext *ctx = new parsingContext();
     assert(ctx && "Could not allocate for parsing context.");
@@ -234,73 +280,86 @@ parsingContext *parseContextCreate(){
     return ctx;
 }
 
-Error parseExpr(parsingContext *context, char* source, char **end, Node *result) {
+Error parseExpr(ParsingContext *context, char* source, char **end, Node *result) {
     size_t token_cnt = 0;
+    size_t token_length = 0;
     Token current_token;
     current_token.begin = source;
     current_token.end   = source;
-    Error err = ok;
-
-    while ((err = lex(current_token.end, &current_token)).type == ErrorType::NONE) {
-        *end = current_token.end;
-        size_t token_length = current_token.end - current_token.begin; 
-        if(token_length == 0)
-            break;
-        if(parseInteger(&current_token, result)){
-            Node lhs_integer = *result;
-            err = lex(current_token.end, &current_token);
-            if(err.type != ErrorType::NONE)
-                return err;
-            *end = current_token.end;
-        } else{
-            Node *symbol = nodeSymbolFromBuffer(current_token.begin, token_length);
-
-            err = lex(current_token.end, &current_token);
-            if(err.type != ErrorType::NONE)
-                return err;
-            *end = current_token.end;
-            size_t token_length = current_token.end - current_token.begin;
-            if(token_length == 0)
-                break;
-            if(tokenStringEqual(":", &current_token)) {
-                err = lex(current_token.end, &current_token);
-                if(err.type != ErrorType::NONE)
-                    return err;
-                *end = current_token.end;
-                size_t token_length = current_token.end - current_token.begin;
-                if (token_length == 0)
-                    break;
-                Node *expected_type_symbol = nodeSymbolFromBuffer(current_token.begin, token_length);
-                bool status = environmentGet(*context->types, expected_type_symbol, result);
-                if(status == 0) {
-                    err.prepareError(ErrorType::TYPE, "Invalid type within variable declaration.");
-                    std::cout << "\nINVALID TYPE: " << expected_type_symbol->value.symbol << '\n';
-                    return err;
-                }else{
-                    Node *var_decl = nodeAllocate();
-                    var_decl->type = NodeType::VARIABLE_DECLARATION;
-
-                    Node *type_node = nodeAllocate();
-                    type_node->type = result->type;
-
-                    nodeAddChild(var_decl, type_node);
-                    nodeAddChild(var_decl, symbol);
-
-                    *result = *var_decl;
-                    delete var_decl;
-
-                    return ok;
-                }
-            }
-            
-            std::cout << "Unrecognized token: ";
-            printToken(current_token);
-            std::cout << '\n';
-            return err;
-        }
-        std::cout << "Intermediate node: ";
-        printNode(result, 0);
+    Error err = ErrorType::OK;
+    while ((err = lexAdvance(&current_token, &token_length, end)).type == ErrorType::NONE) {
+        std::cout << "lexed: ";
+        printToken(current_token);
         std::cout << '\n';
+        if(token_length == 0)
+            return ErrorType::OK;
+        if(parseInteger(&current_token, result))
+            return ErrorType::OK;
+        
+        Node *symbol = nodeSymbolFromBuffer(current_token.begin, token_length);
+
+        err = lexAdvance(&current_token, &token_length, end);
+        if(err.type != ErrorType::NONE)
+            return err;
+        if(token_length == 0)
+            return ErrorType::OK;
+        if(tokenStringEqual(":", &current_token)) {
+            err = lexAdvance(&current_token, &token_length, end);
+            if(err.type != ErrorType::NONE)
+                return err;
+            if (token_length == 0)
+                break;
+            Node *variable_binding = nodeSymbolFromBuffer(current_token.begin, token_length);
+            bool status = environmentGet(*context->variables, expected_type_symbol, result);
+            if(status) {
+                if (tokenStringEqual("=", &current_token)) {
+                    Node *reassign_expr = nodeAllocate();
+                    err = parseExpr(context, current_token.end, end, reassign_expr);
+                    if (err.type != ErrorType::OK) {
+                        delete variable_binding;
+                        return err;
+                    }
+                    
+                    if (reassign_expr->type != variable_binding->type) {
+                        delete variable_binding;
+                        error.prepareError(ErrorType::TYPE, "Variable assignment expression has mismatched type.");
+                        return err;
+                    }
+                    Node *var_reassign = nodeAllocate();
+                    var_reassign->type = NodeType::VARIABLE_REASSIGNMENT;
+
+                    nodeAddChild(var_reassign, reassign_expr);
+                    nodeAddChild(var_reassign, symbol);
+
+                    *result = *var_reassign;
+                    delete var_reassign;
+
+                    return ErrorType::OK;
+                }
+                std::cout << "ID of redefined variable: " << symbol->value.symbol << '\n';
+                err.prepareError(ErrorType::GENERIC, "Redefinition of variable!");
+                return err;
+            } else {
+                Node *var_decl = nodeAllocate();
+                var_decl->type = NodeType::VARIABLE_DECLARATION;
+
+                Node *type_node = nodeAllocate();
+                type_node->type = result->type;
+
+                nodeAddChild(var_decl, symbol);
+                nodeAddChild(var_decl, type_node);
+
+                *result = *var_decl;
+                delete var_decl;
+
+                return ErrorType::OK;
+            }
+        }
+        
+        std::cout << "Unrecognized token: ";
+        printToken(current_token);
+        std::cout << '\n';
+        return err;
     }
     
     return err;

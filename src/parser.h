@@ -16,11 +16,12 @@ void printToken(Token tok);
 Error lex(char *source, Token *token);
 
 enum class NodeType {
-    NONE,
+    NONE = 0,
     INTEGER,
     SYMBOL,
     VARIABLE_DECLARATION,
     VARIABLE_DECLARATION_INITIALIZED,
+    VARIABLE_REASSIGNMENT,
     BINARY_OPERATOR,
     PROGRAM,
     MAX
@@ -58,6 +59,7 @@ Node *nodeSymbol(const char *symbol_string);
 Node *nodeSymbolFromBuffer(char *buffer, size_t length);
 void printNode(Node *node, size_t indent_level);
 void deleteNode(Node *root);
+void nodeCopy(Node *a, Node *b);
 bool tokenStringEqual(const char *string, Token *token);
 bool parseInteger(Token *token, Node *node);
 

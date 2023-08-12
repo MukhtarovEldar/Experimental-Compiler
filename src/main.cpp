@@ -16,8 +16,7 @@ int main(int argc, char **argv) {
         displayUsage(argv);
         std::exit(0);
     }
-    char *path = argv[1];
-    char *contents = FileContents(path);
+    char *contents = FileContents(argv[1]);
     assert(contents && "Could not allocate buffer for file contents.");
     if (contents) {
         // std::cout << "Contents of " << path << ":\n---\n" << contents << "\n---\n";
@@ -29,7 +28,11 @@ int main(int argc, char **argv) {
         char *contents_it = contents;
         char *last_contents_it = nullptr;
         Error err = parseExpr(context, contents_it, &contents_it, expression);
-        nodeAddChild(program, expression);
+        
+        Node *child = nodeAllocate();
+        nodeCopy(expression, child);
+        nodeAddChild(program, child);
+
         std::cout << '\n';
 
         printError(err);
