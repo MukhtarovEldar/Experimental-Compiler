@@ -24,22 +24,26 @@ int main(int argc, char **argv) {
         Node *program = nodeAllocate();
         program->type = NodeType::PROGRAM;
         Node *expression = nodeAllocate();
-        memset(expression, 0, sizeof(Node));
         char *contents_it = contents;
-        char *last_contents_it = nullptr;
-        Error err = parseExpr(context, contents_it, &contents_it, expression);
-        
-        Node *child = nodeAllocate();
-        nodeCopy(expression, child);
-        nodeAddChild(program, child);
-
-        std::cout << '\n';
-
-        printError(err);
+        for(;;){
+            Error err = parseExpr(context, contents_it, &contents_it, expression);
+            if (!(*contents_it))
+                break;
+            if (err.type != ErrorType::NONE) {
+                printError(err);
+                break;
+            }
+            Node *child = nodeAllocate();
+            nodeCopy(expression, child);
+            nodeAddChild(program, child);
+        }
+        deleteNode(expression);
 
         printNode(program, 0);
+        std::cout << '\n';
 
         deleteNode(program);
+
         delete[] contents;
     }
 

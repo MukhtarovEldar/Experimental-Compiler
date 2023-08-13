@@ -13,6 +13,7 @@ struct Token{
 };
 
 void printToken(Token tok);
+bool commentAtBeginning(Token token);
 Error lex(char *source, Token *token);
 
 enum class NodeType {
@@ -51,8 +52,8 @@ struct Node {
     }
 };
 
-Node *nodeAllocate();
 void nodeAddChild(Node *parent, Node *new_child);
+Node *nodeAllocate();
 bool nodeCompare(Node *a, Node *b);
 Node *nodeInteger(long long value);
 Node *nodeSymbol(const char *symbol_string);

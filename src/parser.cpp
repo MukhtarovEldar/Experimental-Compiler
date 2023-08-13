@@ -11,12 +11,21 @@
 
 // ---------------- LEXER BEGINNING -----------------
 
+const char *comment_delimiters = ";#";
 const char *whitespace = " \r\n"; 
 const char *delimiters = " \r\n,():"; 
 
-void printToken(Token tok){
-    std::cout << std::string(tok.begin, tok.end - tok.begin);
+bool commentAtBeginning(Token token){
+    const char *comment_it = comment_delimiters;
+    while(*comment_it){
+        if(*(token.begin) == *comment_it){
+            return true;
+        }
+        comment_it++;
+    }
+    return false;
 }
+
 
 Error lex(char* source, Token *token) {
     Error err = ok;
@@ -27,9 +36,19 @@ Error lex(char* source, Token *token) {
     token->begin = source;
     token->begin += strspn(token->begin, whitespace);
     token->end = token->begin;
-    if (*(token->end) == '\0') {
+    if (*(token->end) == '\0')
         return err;
+    while(commentAtBeginning(*token)){
+        token->begin = strpbrk(token->begin, "\n");
+        if (!token->begin) {
+            token->end = token->begin;
+            return err;
+        }
+        token->begin += strspn(token->begin, whitespace);
+        token->end = token->begin;
     }
+    if (*(token->end) == '\0')
+        return err;
     token->end += strcspn(token->begin, delimiters);
     if (token->end == token->begin) {
         token->end += 1;
@@ -47,6 +66,10 @@ bool tokenStringEqual(const char* string, Token *token){
         beg++;
     }
     return true;
+}
+
+void printToken(Token tok){
+    std::cout << std::string(tok.begin, tok.end - tok.begin);
 }
 
 // ----------------- LEXER ENDING ------------------
@@ -208,15 +231,16 @@ void deleteNode(Node *root){
 }
 
 Error lexAdvance(Token *token, size_t *token_length, char **end) {
+    Error err = ok;
     if(!token || !token_length || !end) {
         err.createError(ErrorType::ARGUMENTS, "lexAdvance(): pointer arguments must not be null!");
         return err;
     }
-    Error err = lex(token->end, token);
+    err = lex(token->end, token);
     *end = token->end;
     if(err.type != ErrorType::NONE)
         return err;
-    *token_length = token->end - token->beginning;
+    *token_length = token->end - token->begin;
     return err;
 }
 
@@ -280,21 +304,21 @@ parsingContext *parseContextCreate(){
     return ctx;
 }
 
-Error parseExpr(ParsingContext *context, char* source, char **end, Node *result) {
+Error parseExpr(parsingContext *context, char* source, char **end, Node *result) {
     size_t token_cnt = 0;
     size_t token_length = 0;
     Token current_token;
     current_token.begin = source;
     current_token.end   = source;
-    Error err = ErrorType::OK;
+    Error err = ok;
     while ((err = lexAdvance(&current_token, &token_length, end)).type == ErrorType::NONE) {
         std::cout << "lexed: ";
         printToken(current_token);
         std::cout << '\n';
         if(token_length == 0)
-            return ErrorType::OK;
+            return ok;
         if(parseInteger(&current_token, result))
-            return ErrorType::OK;
+            return ok;
         
         Node *symbol = nodeSymbolFromBuffer(current_token.begin, token_length);
 
@@ -302,27 +326,26 @@ Error parseExpr(ParsingContext *context, char* source, char **end, Node *result)
         if(err.type != ErrorType::NONE)
             return err;
         if(token_length == 0)
-            return ErrorType::OK;
+            return ok;
         if(tokenStringEqual(":", &current_token)) {
             err = lexAdvance(&current_token, &token_length, end);
             if(err.type != ErrorType::NONE)
                 return err;
-            if (token_length == 0)
+            if(token_length == 0)
                 break;
-            Node *variable_binding = nodeSymbolFromBuffer(current_token.begin, token_length);
-            bool status = environmentGet(*context->variables, expected_type_symbol, result);
-            if(status) {
+            Node *variable_binding = nodeAllocate();
+            if(environmentGet(*context->variables, symbol, variable_binding)) {
                 if (tokenStringEqual("=", &current_token)) {
                     Node *reassign_expr = nodeAllocate();
                     err = parseExpr(context, current_token.end, end, reassign_expr);
-                    if (err.type != ErrorType::OK) {
+                    if (err.type != ErrorType::NONE) {
                         delete variable_binding;
                         return err;
                     }
                     
                     if (reassign_expr->type != variable_binding->type) {
                         delete variable_binding;
-                        error.prepareError(ErrorType::TYPE, "Variable assignment expression has mismatched type.");
+                        err.prepareError(ErrorType::TYPE, "Variable assignment expression has mismatched type.");
                         return err;
                     }
                     Node *var_reassign = nodeAllocate();
@@ -334,31 +357,69 @@ Error parseExpr(ParsingContext *context, char* source, char **end, Node *result)
                     *result = *var_reassign;
                     delete var_reassign;
 
-                    return ErrorType::OK;
+                    return ok;
                 }
                 std::cout << "ID of redefined variable: " << symbol->value.symbol << '\n';
                 err.prepareError(ErrorType::GENERIC, "Redefinition of variable!");
                 return err;
-            } else {
-                Node *var_decl = nodeAllocate();
-                var_decl->type = NodeType::VARIABLE_DECLARATION;
-
-                Node *type_node = nodeAllocate();
-                type_node->type = result->type;
-
-                nodeAddChild(var_decl, symbol);
-                nodeAddChild(var_decl, type_node);
-
-                *result = *var_decl;
-                delete var_decl;
-
-                return ErrorType::OK;
+            } 
+            delete variable_binding;
+            Node *expected_type_symbol = nodeSymbolFromBuffer(current_token.begin, token_length);
+            if(environmentGet(*context->types, expected_type_symbol, result) == 0){
+                err.prepareError(ErrorType::TYPE, "Invalid type within variable declaration.");
+                std::cout << "\nINVALID TYPE: " << expected_type_symbol->value.symbol << '\n';
+                return err;
             }
+
+            Node *var_decl = nodeAllocate();
+            var_decl->type = NodeType::VARIABLE_DECLARATION;
+
+            Node *type_node = nodeAllocate();
+            type_node->type = result->type;
+
+            nodeAddChild(var_decl, symbol);
+
+            char *old_end = *end;
+            lexAdvance(&current_token, &token_length, end);
+            if(err.type != ErrorType::NONE)
+                return err;
+            if(token_length == 0)
+                break;
+            if(tokenStringEqual("=", &current_token)){
+                Node *assigned_expr = nodeAllocate();
+                err = parseExpr(context, current_token.end, end, assigned_expr);
+                if(err.type != ErrorType::NONE)
+                    return err;
+                if(assigned_expr->type != type_node->type){
+                    delete assigned_expr;
+                    err.prepareError(ErrorType::TYPE, "Variable assignment expression has mismatched type.");
+                    return err;
+                }
+                type_node->value = assigned_expr->value;
+                delete assigned_expr;
+            }else
+                *end = old_end;
+            
+            *result = *var_decl;
+            delete var_decl;
+
+            Node *symbol_for_env = nodeAllocate();
+            nodeCopy(symbol, symbol_for_env);
+            bool status = environmentSet(context->variables, symbol_for_env, type_node);
+            if(status != 1){
+                err.prepareError(ErrorType::GENERIC, "Failed to define variable!");
+                return err;
+            }
+
+            return ok;
+        
         }
         
         std::cout << "Unrecognized token: ";
         printToken(current_token);
         std::cout << '\n';
+
+        err.prepareError(ErrorType::SYNTAX, "Unrecognized token reached during parsing");
         return err;
     }
     
