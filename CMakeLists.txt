@@ -17,6 +17,7 @@ add_executable(
     src/environment.cpp
     src/file_io.cpp
     src/parser.cpp
+    src/codegen.cpp
 )
 
 target_include_directories(

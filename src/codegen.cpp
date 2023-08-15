@@ -6,7 +6,7 @@
 #include <iostream>
 #include <fstream>
 
-Error codegen_program_x86_64_att_asm(ParsingContext *context, Node *program){
+Error codegen_program_x86_64_att_asm(parsingContext *context, Node *program){
     Error err = ok;
     if(!program || program->type != NodeType::PROGRAM){
         err.prepareError(ErrorType::ARGUMENTS, "codegen_program() requires a program!");
@@ -28,7 +28,7 @@ Error codegen_program_x86_64_att_asm(ParsingContext *context, Node *program){
             case NodeType::VARIABLE_DECLARATION:
                 environmentGet(*context->variables, expression->children, tmpnode1);
                 environmentGet(*context->types, tmpnode1, tmpnode1);
-                print_node(tmpnode1, 0);
+                printNode(tmpnode1, 0);
                 break;
         }
         expression = expression->next_child;
@@ -37,14 +37,15 @@ Error codegen_program_x86_64_att_asm(ParsingContext *context, Node *program){
     return ok;
 }
 
-Error codegen_program(CodegenOutputFormat format, ParsingContext *context, Node *program) {
+Error codegen_program(CodegenOutputFormat format, parsingContext *context, Node *program) {
+    Error err = ok;
     if(!context){
         err.createError(ErrorType::ARGUMENTS, "codegen_program() must be passed a non-NULL context.");
         return err;
     }
     switch(format){
-        case OUTPUT_FMT_DEFAULT:
-        case OUTPUT_FMT_x86_64_AT_T_ASM:
+        case CodegenOutputFormat::OUTPUT_FMT_DEFAULT:
+        case CodegenOutputFormat::OUTPUT_FMT_x86_64_AT_T_ASM:
             return codegen_program_x86_64_att_asm(context, program);
     }
     return ok;

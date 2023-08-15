@@ -9,6 +9,6 @@ enum class CodegenOutputFormat {
     OUTPUT_FMT_x86_64_AT_T_ASM,
 };
 
-Error codegen_program(CodegenOutputFormat format, ParsingContext* context, Node* program);
+Error codegen_program(CodegenOutputFormat format, parsingContext *context, Node *program);
 
 #endif /* COMPILER_CODEGEN_H */
