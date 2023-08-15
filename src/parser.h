@@ -62,10 +62,19 @@ void printNode(Node *node, size_t indent_level);
 void deleteNode(Node *root);
 void nodeCopy(Node *a, Node *b);
 bool tokenStringEqual(const char *string, Token *token);
+
+struct ExpectReturnValue {
+    Error err;
+    char found;
+    char done;
+
+    Error expect(const char *expected, Token current, size_t *current_length, char **end);
+};
+
 bool parseInteger(Token *token, Node *node);
+ExpectReturnValue lexExpect(char *expected, Token *current, size_t *current_length, char **end);
 
 struct parsingContext{
-    // struct parsingContext *parent;
     Environment *types;
     Environment *variables;
 };

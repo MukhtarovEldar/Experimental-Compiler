@@ -4,6 +4,7 @@
 #include <cstring>
 #include <cassert>
 
+#include "codegen.h"
 #include "error.h"
 #include "file_io.h"
 #include "environment.h"
@@ -27,12 +28,12 @@ int main(int argc, char **argv) {
         char *contents_it = contents;
         for(;;){
             Error err = parseExpr(context, contents_it, &contents_it, expression);
-            if (!(*contents_it))
-                break;
             if (err.type != ErrorType::NONE) {
                 printError(err);
                 break;
             }
+            if (!(*contents_it))
+                break;
             Node *child = nodeAllocate();
             nodeCopy(expression, child);
             nodeAddChild(program, child);
@@ -41,6 +42,12 @@ int main(int argc, char **argv) {
 
         printNode(program, 0);
         std::cout << '\n';
+
+        std::cout << "Generating code!\n";
+
+        codegen_program(CodegenOutputFormat::OUTPUT_FMT_DEFAULT, context, program);
+
+        std::cout << "Code generated.\n";
 
         deleteNode(program);
 

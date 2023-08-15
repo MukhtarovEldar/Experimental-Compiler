@@ -142,6 +142,12 @@ bool nodeCompare(Node *a, Node *b){
     return false;
 }
 
+Node *nodeNone(){
+    Node *none = nodeAllocate();
+    none->type = NodeType::NONE;
+    return none;
+}
+
 Node *nodeInteger(long long value){
     Node *integer = nodeAllocate();
     integer->type = NodeType::INTEGER;
@@ -166,6 +172,29 @@ Node *nodeSymbolFromBuffer(char *buffer, size_t length) {
     symbol->type = NodeType::SYMBOL;
     symbol->value.symbol = symbol_string;
     return symbol;
+}
+
+Error nodeAddType(Environment *types, int type, Node *type_symbol, long long byte_size) {
+    assert(types && "Can not add type to NULL types environment");
+    assert(type_symbol && "Can not add NULL type symbol to types environment");
+    assert(byte_size >= 0 && "Can not define new type with zero or negative byte size");
+
+    Node *size_node = nodeAllocate();
+    size_node->type = NodeType::INTEGER;
+    size_node->value.integer = byte_size;
+
+    Node *type_node = nodeAllocate();
+    // TODO: Solve the problem with `type`
+    type_node->type = static_cast<NodeType>(type);
+    type_node->children = size_node;
+
+    Error err = ok;
+
+    if(environmentSet(types, type_symbol, type_node) == 1)
+        return err;
+    std::cout << "Type that was redefined: " << type_symbol->value.symbol << '\n';
+    err.createError(ErrorType::TYPE, "Redefinition of type!");
+    return err;
 }
 
 void printNode(Node *node, size_t indent_level){
@@ -244,6 +273,46 @@ Error lexAdvance(Token *token, size_t *token_length, char **end) {
     return err;
 }
 
+ExpectReturnValue lexExpect(const char *expected, Token *current, size_t *current_length, char **end){
+    ExpectReturnValue out;
+    out.done = 0;
+    out.found = 0;
+    out.err = ok;
+    if(!expected || !current || !current_length || !end){
+        out.err.prepareError(ErrorType::ARGUMENTS, "lexExpect() must not be passed NULL pointers!");
+        return out;
+    }
+    Token current_copy = *current;
+    size_t current_length_copy = *current_length;
+    char *end_value = *end;
+
+    out.err = lexAdvance(&current_copy, &current_length_copy, &end_value);
+    if(out.err.type != ErrorType::NONE)
+        return out;
+    if(current_length_copy == 0){
+        out.done = 1;
+        return out;
+    }
+    if(tokenStringEqual(expected, &current_copy)){
+        out.found = 1;
+        *end = end_value;
+        *current= current_copy;
+        *current_length = current_length_copy;
+        return out;
+    }
+
+    return out;
+}
+
+Error ExpectReturnValue::expect(const char *expected, Token current, size_t *current_length, char **end){
+    lexExpect(expected, &current, current_length, end);
+    if(err.type != ErrorType::NONE)
+        return err;
+    if(this->done)
+        return ok;
+    return ok; // Provide a default return value
+}
+
 bool parseInteger(Token *token, Node *node){
     if(!token || !node)
         return false;
@@ -265,10 +334,10 @@ bool parseInteger(Token *token, Node *node){
 }
 
 void nodeCopy(Node *a, Node *b) {
-    if (!a || !b)
+    if(!a || !b)
         return;
     b->type = a->type;
-    switch (a->type) {
+    switch(a->type){
     default:
         b->value = a->value;
         break;
@@ -297,7 +366,8 @@ parsingContext *parseContextCreate(){
     parsingContext *ctx = new parsingContext();
     assert(ctx && "Could not allocate for parsing context.");
     ctx->types = environmentCreate(nullptr);
-    if(environmentSet(ctx->types, nodeSymbol("integer"), nodeInteger(0)) == 0){
+    Error err = nodeAddType(ctx->types, static_cast<int>(NodeType::INTEGER), nodeSymbol("integer"), sizeof(long long));
+    if(err.type != ErrorType::NONE){
         std::cout << "ERROR: Failed to set built-in type in types environment.\n";
     }
     ctx->variables = environmentCreate(nullptr);
@@ -305,6 +375,7 @@ parsingContext *parseContextCreate(){
 }
 
 Error parseExpr(parsingContext *context, char* source, char **end, Node *result) {
+    ExpectReturnValue expected;
     size_t token_cnt = 0;
     size_t token_length = 0;
     Token current_token;
@@ -312,9 +383,9 @@ Error parseExpr(parsingContext *context, char* source, char **end, Node *result)
     current_token.end   = source;
     Error err = ok;
     while ((err = lexAdvance(&current_token, &token_length, end)).type == ErrorType::NONE) {
-        std::cout << "lexed: ";
-        printToken(current_token);
-        std::cout << '\n';
+        // std::cout << "lexed: ";
+        // printToken(current_token);
+        // std::cout << '\n';
         if(token_length == 0)
             return ok;
         if(parseInteger(&current_token, result))
@@ -322,95 +393,80 @@ Error parseExpr(parsingContext *context, char* source, char **end, Node *result)
         
         Node *symbol = nodeSymbolFromBuffer(current_token.begin, token_length);
 
-        err = lexAdvance(&current_token, &token_length, end);
-        if(err.type != ErrorType::NONE)
-            return err;
-        if(token_length == 0)
-            return ok;
-        if(tokenStringEqual(":", &current_token)) {
+        expected.expect(":", current_token, &token_length, end);
+        if(expected.found){
+            expected.expect("=", current_token, &token_length, end);
+            if(expected.found){
+                Node *variable_binding = nodeAllocate();
+                if(!environmentGet(*context->variables, symbol, variable_binding)){
+                    std::cout << "ID of undeclared variable: " << symbol->value.symbol << '\n';
+                    err.prepareError(ErrorType::GENERIC, "Reassignment of a variable that has not been declared!");
+                    return err;
+                }                    
+                Node *reassign_expr = nodeAllocate();
+                err = parseExpr(context, current_token.end, end, reassign_expr);
+                if (err.type != ErrorType::NONE)
+                    return err;
+                
+                Node *var_reassign = nodeAllocate();
+                var_reassign->type = NodeType::VARIABLE_REASSIGNMENT;
+
+                nodeAddChild(var_reassign, symbol);
+                nodeAddChild(var_reassign, reassign_expr);
+
+                *result = *var_reassign;
+                delete var_reassign;
+
+                return ok;
+            }
             err = lexAdvance(&current_token, &token_length, end);
             if(err.type != ErrorType::NONE)
                 return err;
             if(token_length == 0)
                 break;
+            Node *type_symbol = nodeSymbolFromBuffer(current_token.begin, token_length);
+            if(environmentGet(*context->types, type_symbol, result) == 0){
+                err.prepareError(ErrorType::TYPE, "Invalid type within variable declaration.");
+                std::cout << "\nINVALID TYPE: " << type_symbol->value.symbol << '\n';
+                return err;
+            }
             Node *variable_binding = nodeAllocate();
-            if(environmentGet(*context->variables, symbol, variable_binding)) {
-                if (tokenStringEqual("=", &current_token)) {
-                    Node *reassign_expr = nodeAllocate();
-                    err = parseExpr(context, current_token.end, end, reassign_expr);
-                    if (err.type != ErrorType::NONE) {
-                        delete variable_binding;
-                        return err;
-                    }
-                    
-                    if (reassign_expr->type != variable_binding->type) {
-                        delete variable_binding;
-                        err.prepareError(ErrorType::TYPE, "Variable assignment expression has mismatched type.");
-                        return err;
-                    }
-                    Node *var_reassign = nodeAllocate();
-                    var_reassign->type = NodeType::VARIABLE_REASSIGNMENT;
-
-                    nodeAddChild(var_reassign, reassign_expr);
-                    nodeAddChild(var_reassign, symbol);
-
-                    *result = *var_reassign;
-                    delete var_reassign;
-
-                    return ok;
-                }
+            if(environmentGet(*context->variables, symbol, variable_binding)){
                 std::cout << "ID of redefined variable: " << symbol->value.symbol << '\n';
                 err.prepareError(ErrorType::GENERIC, "Redefinition of variable!");
                 return err;
-            } 
-            delete variable_binding;
-            Node *expected_type_symbol = nodeSymbolFromBuffer(current_token.begin, token_length);
-            if(environmentGet(*context->types, expected_type_symbol, result) == 0){
-                err.prepareError(ErrorType::TYPE, "Invalid type within variable declaration.");
-                std::cout << "\nINVALID TYPE: " << expected_type_symbol->value.symbol << '\n';
-                return err;
             }
+            delete variable_binding;
 
             Node *var_decl = nodeAllocate();
             var_decl->type = NodeType::VARIABLE_DECLARATION;
 
-            Node *type_node = nodeAllocate();
-            type_node->type = result->type;
+            Node *value_expression = nodeNone();
 
             nodeAddChild(var_decl, symbol);
+            nodeAddChild(var_decl, value_expression);
 
-            char *old_end = *end;
-            lexAdvance(&current_token, &token_length, end);
-            if(err.type != ErrorType::NONE)
-                return err;
-            if(token_length == 0)
-                break;
-            if(tokenStringEqual("=", &current_token)){
-                Node *assigned_expr = nodeAllocate();
-                err = parseExpr(context, current_token.end, end, assigned_expr);
-                if(err.type != ErrorType::NONE)
-                    return err;
-                if(assigned_expr->type != type_node->type){
-                    delete assigned_expr;
-                    err.prepareError(ErrorType::TYPE, "Variable assignment expression has mismatched type.");
-                    return err;
-                }
-                type_node->value = assigned_expr->value;
-                delete assigned_expr;
-            }else
-                *end = old_end;
-            
             *result = *var_decl;
             delete var_decl;
 
             Node *symbol_for_env = nodeAllocate();
             nodeCopy(symbol, symbol_for_env);
-            bool status = environmentSet(context->variables, symbol_for_env, type_node);
+            bool status = environmentSet(context->variables, symbol_for_env, type_symbol);
             if(status != 1){
+                std::cout << "Variable: " << symbol_for_env->value.symbol << ", status: " << status << '\n';
                 err.prepareError(ErrorType::GENERIC, "Failed to define variable!");
                 return err;
             }
 
+            expected.expect("=", current_token, &token_length, end);
+            if(expected.found){
+                Node *assigned_expr = nodeAllocate();
+                err = parseExpr(context, current_token.end, end, assigned_expr);
+                if(err.type != ErrorType::NONE)
+                    return err;
+                *value_expression = *assigned_expr;
+                delete assigned_expr;
+            }
             return ok;
         
         }
