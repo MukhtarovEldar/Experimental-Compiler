@@ -20,35 +20,34 @@ int main(int argc, char **argv) {
     char *contents = FileContents(argv[1]);
     assert(contents && "Could not allocate buffer for file contents.");
     if (contents) {
-        // std::cout << "Contents of " << path << ":\n---\n" << contents << "\n---\n";
+        Error err = ok;
         parsingContext *context = parseContextCreate();
         Node *program = nodeAllocate();
         program->type = NodeType::PROGRAM;
-        Node *expression = nodeAllocate();
         char *contents_it = contents;
         for(;;){
-            Error err = parseExpr(context, contents_it, &contents_it, expression);
+            Node *expression = nodeAllocate();
+            nodeAddChild(program, expression);
+            err = parseExpr(context, contents_it, &contents_it, expression);
             if (err.type != ErrorType::NONE) {
                 printError(err);
                 break;
             }
             if (!(*contents_it))
                 break;
-            Node *child = nodeAllocate();
-            nodeCopy(expression, child);
-            nodeAddChild(program, child);
         }
-        deleteNode(expression);
 
         printNode(program, 0);
         std::cout << '\n';
 
-        std::cout << "Generating code!\n";
+        if (err.type == ERROR_NONE) {
+            std::cout << "Generating code!\n";
 
-        codegen_program(CodegenOutputFormat::OUTPUT_FMT_DEFAULT, context, program);
+            codegen_program(CodegenOutputFormat::OUTPUT_FMT_DEFAULT, context, program);
 
-        std::cout << "Code generated.\n";
-
+            std::cout << "Code generated.\n";
+        }
+        
         deleteNode(program);
 
         delete[] contents;

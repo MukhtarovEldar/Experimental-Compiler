@@ -405,18 +405,17 @@ Error parseExpr(parsingContext *context, char* source, char **end, Node *result)
                     std::cout << "ID of undeclared variable: " << symbol->value.symbol << '\n';
                     err.prepareError(ErrorType::GENERIC, "Reassignment of a variable that has not been declared!");
                     return err;
-                }                    
+                }
+                delete variable_binding;                  
                 
                 Node *var_reassign = nodeAllocate();
-                var_reassign->type = NodeType::VARIABLE_REASSIGNMENT;
+                working_result->type = NodeType::VARIABLE_REASSIGNMENT;
+            
+                nodeAddChild(working_result, symbol);
 
                 Node *reassign_expr = nodeAllocate();
-
-                nodeAddChild(var_reassign, symbol);
-                nodeAddChild(var_reassign, reassign_expr);
-
-                *working_result = *var_reassign;
-                delete var_reassign;
+                
+                nodeAddChild(working_result, reassign_expr);
 
                 working_result = reassign_expr;
                 continue;
@@ -427,11 +426,13 @@ Error parseExpr(parsingContext *context, char* source, char **end, Node *result)
             if(token_length == 0)
                 break;
             Node *type_symbol = nodeSymbolFromBuffer(current_token.begin, token_length);
-            if(environmentGet(*context->types, type_symbol, working_result) == 0){
+            Node *type_value = nodeAllocate();
+            if(environmentGet(*context->types, type_symbol, type_value) == 0){
                 err.prepareError(ErrorType::TYPE, "Invalid type within variable declaration.");
                 std::cout << "\nINVALID TYPE: " << type_symbol->value.symbol << '\n';
                 return err;
             }
+            delete type_value;
             Node *variable_binding = nodeAllocate();
             if(environmentGet(*context->variables, symbol, variable_binding)){
                 std::cout << "ID of redefined variable: " << symbol->value.symbol << '\n';
