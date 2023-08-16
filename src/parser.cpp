@@ -382,13 +382,16 @@ Error parseExpr(parsingContext *context, char* source, char **end, Node *result)
     current_token.begin = source;
     current_token.end   = source;
     Error err = ok;
+
+    Node *working_result = result;
+
     while ((err = lexAdvance(&current_token, &token_length, end)).type == ErrorType::NONE) {
         // std::cout << "lexed: ";
         // printToken(current_token);
         // std::cout << '\n';
         if(token_length == 0)
             return ok;
-        if(parseInteger(&current_token, result))
+        if(parseInteger(&current_token, working_result))
             return ok;
         
         Node *symbol = nodeSymbolFromBuffer(current_token.begin, token_length);
@@ -403,21 +406,20 @@ Error parseExpr(parsingContext *context, char* source, char **end, Node *result)
                     err.prepareError(ErrorType::GENERIC, "Reassignment of a variable that has not been declared!");
                     return err;
                 }                    
-                Node *reassign_expr = nodeAllocate();
-                err = parseExpr(context, current_token.end, end, reassign_expr);
-                if (err.type != ErrorType::NONE)
-                    return err;
                 
                 Node *var_reassign = nodeAllocate();
                 var_reassign->type = NodeType::VARIABLE_REASSIGNMENT;
 
+                Node *reassign_expr = nodeAllocate();
+
                 nodeAddChild(var_reassign, symbol);
                 nodeAddChild(var_reassign, reassign_expr);
 
-                *result = *var_reassign;
+                *working_result = *var_reassign;
                 delete var_reassign;
 
-                return ok;
+                working_result = reassign_expr;
+                continue;
             }
             err = lexAdvance(&current_token, &token_length, end);
             if(err.type != ErrorType::NONE)
@@ -425,7 +427,7 @@ Error parseExpr(parsingContext *context, char* source, char **end, Node *result)
             if(token_length == 0)
                 break;
             Node *type_symbol = nodeSymbolFromBuffer(current_token.begin, token_length);
-            if(environmentGet(*context->types, type_symbol, result) == 0){
+            if(environmentGet(*context->types, type_symbol, working_result) == 0){
                 err.prepareError(ErrorType::TYPE, "Invalid type within variable declaration.");
                 std::cout << "\nINVALID TYPE: " << type_symbol->value.symbol << '\n';
                 return err;
@@ -438,16 +440,12 @@ Error parseExpr(parsingContext *context, char* source, char **end, Node *result)
             }
             delete variable_binding;
 
-            Node *var_decl = nodeAllocate();
-            var_decl->type = NodeType::VARIABLE_DECLARATION;
+            working_result->type = NodeType::VARIABLE_DECLARATION;
 
             Node *value_expression = nodeNone();
 
-            nodeAddChild(var_decl, symbol);
-            nodeAddChild(var_decl, value_expression);
-
-            *result = *var_decl;
-            delete var_decl;
+            nodeAddChild(working_result, symbol);
+            nodeAddChild(working_result, value_expression);
 
             Node *symbol_for_env = nodeAllocate();
             nodeCopy(symbol, symbol_for_env);
@@ -460,15 +458,10 @@ Error parseExpr(parsingContext *context, char* source, char **end, Node *result)
 
             expected.expect("=", current_token, &token_length, end);
             if(expected.found){
-                Node *assigned_expr = nodeAllocate();
-                err = parseExpr(context, current_token.end, end, assigned_expr);
-                if(err.type != ErrorType::NONE)
-                    return err;
-                *value_expression = *assigned_expr;
-                delete assigned_expr;
+                working_result = value_expression;
+                continue;
             }
             return ok;
-        
         }
         
         std::cout << "Unrecognized token: ";
