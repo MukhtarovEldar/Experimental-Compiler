@@ -1,6 +1,6 @@
-# Experimental C++ Compiler
+# Experimental Compiler
 
-This is an experimental C++ compiler written in C++. The purpose of this project is to explore the basics of compiler design and gain a better understanding of how programming languages are parsed and translated into machine code.
+This is an experimental compiler written in C++. The purpose of this project is to explore the basics of compiler design and gain a better understanding of how programming languages are parsed and translated into machine code.
 
 ## Status
 
@@ -35,7 +35,16 @@ This project is still under development, and there's quite a lot to finish. Some
 2. Build the project using CMake:
 
     ```bash
-    cmake -B build --build build
+    cmake -B build 
+    cmake --build build
+
+3. To build generated x86_64 ASM
+
+    On Windows under MinGW:
+
+    ```bash
+    as code.S -o code.o
+    ld code.o -o code.exe && code.exe
 
 ### Contributing
 
