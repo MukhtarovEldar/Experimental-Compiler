@@ -40,11 +40,11 @@ int main(int argc, char **argv) {
         printNode(program, 0);
         std::cout << '\n';
 
-        if (err.type == ERROR_NONE) {
+        if (err.type == ErrorType::NONE) {
             std::cout << "Generating code!\n";
 
-            codegen_program(CodegenOutputFormat::OUTPUT_FMT_DEFAULT, context, program);
-
+            err = codegen_program(CodegenOutputFormat::OUTPUT_FMT_DEFAULT, context, program);
+            printError(err);
             std::cout << "Code generated.\n";
         }
         
