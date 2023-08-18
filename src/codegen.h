@@ -5,8 +5,8 @@
 #include "parser.h"
 
 enum class CodegenOutputFormat {
-    OUTPUT_FMT_DEFAULT = 0,
-    OUTPUT_FMT_x86_64_AT_T_ASM,
+    DEFAULT = 0,
+    x86_64_AT_T_ASM,
 };
 
 Error codegen_program(CodegenOutputFormat format, parsingContext *context, Node *program);

@@ -109,17 +109,17 @@ bool nodeCompare(Node *a, Node *b){
         case NodeType::NONE:
             if(b->isNone())
                 return true;
-            return false;
+            break;
         case NodeType::INTEGER:
             if(a->value.integer == b->value.integer)
                 return true;
-            return false;
+            break;
         case NodeType::SYMBOL:
-            if (a->value.symbol && b->value.symbol) {
+            if(a->value.symbol && b->value.symbol){
                 if (strcmp(a->value.symbol, b->value.symbol) == false)
                     return true;
                 break;
-            } else if (!a->value.symbol && !b->value.symbol) {
+            }else if(!a->value.symbol && !b->value.symbol){
                 return true;
             }
             break;
@@ -191,7 +191,7 @@ Error nodeAddType(Environment *types, int type, Node *type_symbol, long long byt
     Error err = ok;
 
     if(environmentSet(types, type_symbol, type_node) == 1)
-        return err;
+        return ok;
     std::cout << "Type that was redefined: " << type_symbol->value.symbol << '\n';
     err.createError(ErrorType::TYPE, "Redefinition of type!");
     return err;
@@ -259,80 +259,6 @@ void deleteNode(Node *root){
     delete root;
 }
 
-Error lexAdvance(Token *token, size_t *token_length, char **end) {
-    Error err = ok;
-    if(!token || !token_length || !end) {
-        err.createError(ErrorType::ARGUMENTS, "lexAdvance(): pointer arguments must not be null!");
-        return err;
-    }
-    err = lex(token->end, token);
-    *end = token->end;
-    if(err.type != ErrorType::NONE)
-        return err;
-    *token_length = token->end - token->begin;
-    return err;
-}
-
-ExpectReturnValue lexExpect(const char *expected, Token *current, size_t *current_length, char **end){
-    ExpectReturnValue out;
-    out.done = 0;
-    out.found = 0;
-    out.err = ok;
-    if(!expected || !current || !current_length || !end){
-        out.err.prepareError(ErrorType::ARGUMENTS, "lexExpect() must not be passed NULL pointers!");
-        return out;
-    }
-    Token current_copy = *current;
-    size_t current_length_copy = *current_length;
-    char *end_value = *end;
-
-    out.err = lexAdvance(&current_copy, &current_length_copy, &end_value);
-    if(out.err.type != ErrorType::NONE)
-        return out;
-    if(current_length_copy == 0){
-        out.done = 1;
-        return out;
-    }
-    if(tokenStringEqual(expected, &current_copy)){
-        out.found = 1;
-        *end = end_value;
-        *current= current_copy;
-        *current_length = current_length_copy;
-        return out;
-    }
-
-    return out;
-}
-
-Error ExpectReturnValue::expect(const char *expected, Token current, size_t *current_length, char **end){
-    lexExpect(expected, &current, current_length, end);
-    if(err.type != ErrorType::NONE)
-        return err;
-    if(this->done)
-        return ok;
-    return ok; // Provide a default return value
-}
-
-bool parseInteger(Token *token, Node *node){
-    if(!token || !node)
-        return false;
-    char *end;
-    /// Remove the condition for 0, if that becomes redundant  
-    if(token->end - token->begin == 1 && *(token->begin) == '0'){
-        node->type = NodeType::INTEGER;
-        node->value.integer = 0;
-    } else if((node->value.integer = strtoll(token->begin, &end, 10)) != 0){
-        if(end != token->end){
-            return false;
-        }
-        node->type = NodeType::INTEGER;
-    }
-    else{
-        return false;
-    }
-    return true;
-}
-
 void nodeCopy(Node *a, Node *b) {
     if(!a || !b)
         return;
@@ -374,6 +300,79 @@ parsingContext *parseContextCreate(){
     return ctx;
 }
 
+Error lexAdvance(Token *token, size_t *token_length, char **end) {
+    Error err = ok;
+    if(!token || !token_length || !end) {
+        err.createError(ErrorType::ARGUMENTS, "lexAdvance(): pointer arguments must not be NULL!");
+        return err;
+    }
+    err = lex(token->end, token);
+    *end = token->end;
+    if(err.type != ErrorType::NONE)
+        return err;
+    *token_length = token->end - token->begin;
+    return err;
+}
+
+ExpectReturnValue lexExpect(const char *expected, Token *current, size_t *current_length, char **end){
+    ExpectReturnValue out;
+    out.done = 0;
+    out.found = 0;
+    out.err = ok;
+    if(!expected || !current || !current_length || !end){
+        out.err.prepareError(ErrorType::ARGUMENTS, "lexExpect() must not be passed NULL pointers!");
+        return out;
+    }
+    Token current_copy = *current;
+    size_t current_length_copy = *current_length;
+    char *end_value = *end;
+
+    out.err = lexAdvance(&current_copy, &current_length_copy, &end_value);
+    if(out.err.type != ErrorType::NONE)
+        return out;
+    if(current_length_copy == 0){
+        out.done = 1;
+        return out;
+    }
+    if(tokenStringEqual(expected, &current_copy)){
+        out.found = 1;
+        *end = end_value;
+        *current = current_copy;
+        *current_length = current_length_copy;
+        return out;
+    }
+
+    return out;
+}
+
+Error ExpectReturnValue::expect(const char *expected_string, Token current, size_t current_length, char **end){
+    *this = lexExpect(expected_string, &current, &current_length, end);
+    if(err.type != ErrorType::NONE)
+        return err;
+    if(done)
+        return ok;
+    return err;
+}
+
+bool parseInteger(Token *token, Node *node){
+    if(!token || !node)
+        return false;
+    char *end;
+    /// Remove the condition for 0, if that becomes redundant  
+    if(token->end - token->begin == 1 && *(token->begin) == '0'){
+        node->type = NodeType::INTEGER;
+        node->value.integer = 0;
+    }else if((node->value.integer = strtoll(token->begin, &end, 10)) != 0){
+        if(end != token->end){
+            return false;
+        }
+        node->type = NodeType::INTEGER;
+    }
+    else
+        return false;
+    return true;
+}
+
 Error parseExpr(parsingContext *context, char* source, char **end, Node *result) {
     ExpectReturnValue expected;
     size_t token_cnt = 0;
@@ -396,9 +395,9 @@ Error parseExpr(parsingContext *context, char* source, char **end, Node *result)
         
         Node *symbol = nodeSymbolFromBuffer(current_token.begin, token_length);
 
-        expected.expect(":", current_token, &token_length, end);
+        expected.expect(":", current_token, token_length, end);
         if(expected.found){
-            expected.expect("=", current_token, &token_length, end);
+            expected.expect("=", current_token, token_length, end);
             if(expected.found){
                 Node *variable_binding = nodeAllocate();
                 if(!environmentGet(*context->variables, symbol, variable_binding)){
@@ -406,9 +405,8 @@ Error parseExpr(parsingContext *context, char* source, char **end, Node *result)
                     err.prepareError(ErrorType::GENERIC, "Reassignment of a variable that has not been declared!");
                     return err;
                 }
-                delete variable_binding;                  
+                delete variable_binding;
                 
-                Node *var_reassign = nodeAllocate();
                 working_result->type = NodeType::VARIABLE_REASSIGNMENT;
             
                 nodeAddChild(working_result, symbol);
@@ -450,14 +448,14 @@ Error parseExpr(parsingContext *context, char* source, char **end, Node *result)
 
             Node *symbol_for_env = nodeAllocate();
             nodeCopy(symbol, symbol_for_env);
-            bool status = environmentSet(context->variables, symbol_for_env, type_symbol);
+            int status = environmentSet(context->variables, symbol_for_env, type_symbol);
             if(status != 1){
                 std::cout << "Variable: " << symbol_for_env->value.symbol << ", status: " << status << '\n';
                 err.prepareError(ErrorType::GENERIC, "Failed to define variable!");
                 return err;
             }
 
-            expected.expect("=", current_token, &token_length, end);
+            expected.expect("=", current_token, token_length, end);
             if(expected.found){
                 working_result = value_expression;
                 continue;

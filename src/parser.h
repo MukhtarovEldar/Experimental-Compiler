@@ -68,7 +68,7 @@ struct ExpectReturnValue {
     char found;
     char done;
 
-    Error expect(const char *expected, Token current, size_t *current_length, char **end);
+    Error expect(const char *expected_string, Token current, size_t current_length, char **end);
 };
 
 bool parseInteger(Token *token, Node *node);
