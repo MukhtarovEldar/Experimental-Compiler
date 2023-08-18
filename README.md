@@ -15,7 +15,7 @@ This project is still under development, and there's quite a lot to finish. Some
 - [ ] Semantic Analysis: Checking for semantic correctness and building a symbol table.
 - [ ] Intermediate Code Generation: Converting the AST into intermediate code.
 - [ ] Optimization: Implementing basic optimizations on the intermediate code.
-- [ ] Code Generation: Translating the optimized intermediate code into target machine code (x86, ARM, etc.).
+- [X] Code Generation: Translating the optimized intermediate code into target machine code (x86, ARM, etc.).
 
 ## Getting Started
 
