@@ -27,8 +27,8 @@ int main(int argc, char **argv) {
         char *contents_it = contents;
         for(;;){
             Node *expression = nodeAllocate();
-            nodeAddChild(program, expression);
             err = parseExpr(context, contents_it, &contents_it, expression);
+            nodeAddChild(program, expression);
             if (err.type != ErrorType::NONE) {
                 printError(err);
                 break;

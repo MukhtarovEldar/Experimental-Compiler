@@ -61,18 +61,18 @@ Node *nodeSymbolFromBuffer(char *buffer, size_t length);
 void printNode(Node *node, size_t indent_level);
 void deleteNode(Node *root);
 void nodeCopy(Node *a, Node *b);
-bool tokenStringEqual(const char *string, Token *token);
+bool tokenStringEqual(const std::string &string, const Token *token);
 
 struct ExpectReturnValue {
     Error err;
-    char found;
-    char done;
+    bool found = false;
+    bool done = false;
 
-    Error expect(const char *expected_string, Token current, size_t current_length, char **end);
+    // Error expect(const char *expected_string, Token current, size_t current_length, char **end);
 };
 
 bool parseInteger(Token *token, Node *node);
-ExpectReturnValue lexExpect(char *expected, Token *current, size_t *current_length, char **end);
+ExpectReturnValue lexExpect(const std::string &expected, Token *current, size_t *current_length, char **end);
 
 struct parsingContext{
     Environment *types;

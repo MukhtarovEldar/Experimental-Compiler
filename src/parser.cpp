@@ -26,7 +26,6 @@ bool commentAtBeginning(Token token){
     return false;
 }
 
-
 Error lex(char* source, Token *token) {
     Error err = ok;
     if (!source || !token) {
@@ -56,16 +55,16 @@ Error lex(char* source, Token *token) {
     return err;
 }
 
-bool tokenStringEqual(const char* string, Token *token){
-    if(!string || !token) return false;
-    char *beg = token->begin;
-    while(*string && token->begin < token->end){
-        if(*string != *beg)
+bool tokenStringEqual(const std::string &string, const Token *token){
+    if(string.empty() || !token)
+        return false;
+    char* beg = token->begin;
+    for(char ch: string){
+        if(beg >= token->end || ch != *beg)
             return false;
-        string++;
         beg++;
     }
-    return true;
+    return beg == token->end;
 }
 
 void printToken(Token tok){
@@ -127,7 +126,7 @@ bool nodeCompare(Node *a, Node *b){
             std::cout << "TODO: nodeCompare() BINARY OPERATOR\n";
             break;
         case NodeType::VARIABLE_REASSIGNMENT:
-            std::cout << "TODO: node_compare() VARIABLE REASSIGNMENT\n";
+            std::cout << "TODO: nodeCompare() VARIABLE REASSIGNMENT\n";
             break;
         case NodeType::VARIABLE_DECLARATION:
             std::cout << "TODO: nodeCompare() VARIABLE DECLARATION\n";
@@ -158,7 +157,12 @@ Node *nodeInteger(long long value){
 Node *nodeSymbol(const char *symbol_string){
     Node *symbol = nodeAllocate();
     symbol->type = NodeType::SYMBOL;
-    symbol->value.symbol = strdup(symbol_string);
+    // symbol->value.symbol = symbol_string;
+    // TODO: update copying of a string
+    size_t symbol_length = strlen(symbol_string);
+    symbol->value.symbol = new char[symbol_length + 1];
+    std::strcpy(symbol->value.symbol, symbol_string);
+    
     return symbol;
 }
 
@@ -314,12 +318,12 @@ Error lexAdvance(Token *token, size_t *token_length, char **end) {
     return err;
 }
 
-ExpectReturnValue lexExpect(const char *expected, Token *current, size_t *current_length, char **end){
+ExpectReturnValue lexExpect(const std::string &expected, Token *current, size_t *current_length, char **end){
     ExpectReturnValue out;
-    out.done = 0;
-    out.found = 0;
-    out.err = ok;
-    if(!expected || !current || !current_length || !end){
+    out.done = false;
+    out.found = false;
+    out.err.type = ErrorType::NONE;
+    if(expected.empty() || !current || !current_length || !end){
         out.err.prepareError(ErrorType::ARGUMENTS, "lexExpect() must not be passed NULL pointers!");
         return out;
     }
@@ -327,38 +331,44 @@ ExpectReturnValue lexExpect(const char *expected, Token *current, size_t *curren
     size_t current_length_copy = *current_length;
     char *end_value = *end;
 
-    out.err = lexAdvance(&current_copy, &current_length_copy, &end_value);
-    if(out.err.type != ErrorType::NONE)
+    Error advanceError = lexAdvance(&current_copy, &current_length_copy, &end_value);
+    if(advanceError.type != ErrorType::NONE){
+        out.err = advanceError;
         return out;
+    }
     if(current_length_copy == 0){
-        out.done = 1;
+        out.done = true;
         return out;
     }
     if(tokenStringEqual(expected, &current_copy)){
-        out.found = 1;
+        out.found = true;
         *end = end_value;
         *current = current_copy;
         *current_length = current_length_copy;
         return out;
     }
-
     return out;
 }
 
-Error ExpectReturnValue::expect(const char *expected_string, Token current, size_t current_length, char **end){
-    *this = lexExpect(expected_string, &current, &current_length, end);
-    if(err.type != ErrorType::NONE)
-        return err;
-    if(done)
-        return ok;
-    return err;
-}
+// Error ExpectReturnValue::expect(const char *expected_string, Token current, size_t current_length, char **end){
+//     *this = lexExpect(expected_string, &current, &current_length, end);
+//     if(err.type != ErrorType::NONE)
+//         return err;
+//     if(done)
+//         return ok;
+//     return err;
+// }
+
+#define EXPECT(expected, expected_string, current_token, current_length, end)   \
+  expected = lexExpect(expected_string, &current_token, &current_length, end); \
+  if (expected.err.type != ErrorType::NONE) { return expected.err; }                               \
+  if (expected.done) { return ok; }
 
 bool parseInteger(Token *token, Node *node){
     if(!token || !node)
         return false;
-    char *end;
-    /// Remove the condition for 0, if that becomes redundant  
+    char *end = nullptr;
+    /// Remove the condition for false, if that becomes redundant  
     if(token->end - token->begin == 1 && *(token->begin) == '0'){
         node->type = NodeType::INTEGER;
         node->value.integer = 0;
@@ -367,8 +377,7 @@ bool parseInteger(Token *token, Node *node){
             return false;
         }
         node->type = NodeType::INTEGER;
-    }
-    else
+    }else
         return false;
     return true;
 }
@@ -395,9 +404,11 @@ Error parseExpr(parsingContext *context, char* source, char **end, Node *result)
         
         Node *symbol = nodeSymbolFromBuffer(current_token.begin, token_length);
 
-        expected.expect(":", current_token, token_length, end);
+        // expected.expect(":", current_token, token_length, end);
+        EXPECT(expected, ":", current_token, token_length, end);
         if(expected.found){
-            expected.expect("=", current_token, token_length, end);
+            // expected.expect("=", current_token, token_length, end);
+            EXPECT(expected, "=", current_token, token_length, end);
             if(expected.found){
                 Node *variable_binding = nodeAllocate();
                 if(!environmentGet(*context->variables, symbol, variable_binding)){
@@ -433,7 +444,7 @@ Error parseExpr(parsingContext *context, char* source, char **end, Node *result)
             delete type_value;
             Node *variable_binding = nodeAllocate();
             if(environmentGet(*context->variables, symbol, variable_binding)){
-                std::cout << "ID of redefined variable: " << symbol->value.symbol << '\n';
+                std::cout << "ID of redefined variable: \"" << symbol->value.symbol << "\"\n";
                 err.prepareError(ErrorType::GENERIC, "Redefinition of variable!");
                 return err;
             }
@@ -455,7 +466,8 @@ Error parseExpr(parsingContext *context, char* source, char **end, Node *result)
                 return err;
             }
 
-            expected.expect("=", current_token, token_length, end);
+            // expected.expect("=", current_token, token_length, end);
+            EXPECT(expected, "=", current_token, token_length, end);
             if(expected.found){
                 working_result = value_expression;
                 continue;
