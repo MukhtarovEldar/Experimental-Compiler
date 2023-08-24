@@ -4,7 +4,7 @@
 #include <cstddef>
 #include "error.h"
 
-typedef struct Environment Environment;
+// typedef struct Environment Environment;
 
 struct Token{
     char *begin;
@@ -61,25 +61,27 @@ Node *nodeSymbolFromBuffer(char *buffer, size_t length);
 void printNode(Node *node, size_t indent_level);
 void deleteNode(Node *root);
 void nodeCopy(Node *a, Node *b);
-bool tokenStringEqual(const std::string &string, const Token *token);
-
-struct ExpectReturnValue {
-    Error err;
-    bool found = false;
-    bool done = false;
-
-    // Error expect(const char *expected_string, Token current, size_t current_length, char **end);
-};
-
-bool parseInteger(Token *token, Node *node);
-ExpectReturnValue lexExpect(const std::string &expected, Token *current, size_t *current_length, char **end);
 
 struct parsingContext{
-    Environment *types;
-    Environment *variables;
+    // struct parsingContext *parent;
+    struct Environment *types;
+    struct Environment *variables;
 };
 
 parsingContext *parseContextCreate();
+bool tokenStringEqual(const char *string, Token *token);
+
+struct ExpectReturnValue {
+    Error err;
+    bool found;
+    bool done;
+
+    Error expect(ExpectReturnValue &expected, const std::string &expected_string, Token &current_token, size_t &current_length, char **end);
+};
+
+ExpectReturnValue lexExpect(const std::string &expected, Token *current, size_t *current_length, char **end);
+
+bool parseInteger(Token *token, Node *node);
 Error parseExpr(parsingContext *context, char* source, char **end, Node* result);
 
 #endif /* COMPILER_PARSER_H */
