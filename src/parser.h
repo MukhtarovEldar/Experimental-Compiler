@@ -12,7 +12,7 @@ struct Token{
     Token *next;
 };
 
-void printToken(Token tok);
+void printToken(Token &tok);
 bool commentAtBeginning(Token token);
 Error lex(char *source, Token *token);
 

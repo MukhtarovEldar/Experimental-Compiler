@@ -12,8 +12,8 @@
 // ---------------- LEXER BEGINNING -----------------
 
 const char *comment_delimiters = ";#";
-const char *whitespace = " \r\n"; 
-const char *delimiters = " \r\n,():"; 
+const char *whitespace = " \r\n";
+const char *delimiters = " \r\n,():";
 
 bool commentAtBeginning(Token token){
     const char *comment_it = comment_delimiters;
@@ -26,6 +26,22 @@ bool commentAtBeginning(Token token){
     return false;
 }
 
+// bool commentAtBeginning(Token token) {
+
+//     return std::strchr(comment_delimiters, *(token.begin)) != nullptr;
+// }
+
+// bool commentAtBeginning(Token token) {
+//     const std::string comment_delimiters = ";#";
+
+//     for (char delimiter : comment_delimiters) {
+//         if (*(token.begin) == delimiter) {
+//             return true;
+//         }
+//     }
+    
+//     return false;
+// }
 
 Error lex(char* source, Token *token) {
     Error err = ok;
@@ -72,11 +88,10 @@ bool tokenStringEqual(const std::string &string, const Token *token){
     return beg == token->end;
 }
 
-void printToken(Token tok){
+void printToken(Token &tok){
     std::cout << ((tok.end - tok.begin < 1) ?
                 "INVALID TOKEN POINTERS" :
                 std::string(tok.begin, tok.end - tok.begin));
-
 }
 
 // ----------------- LEXER ENDING ------------------
@@ -192,7 +207,6 @@ Error nodeAddType(Environment *types, NodeType type, Node *type_symbol, long lon
     size_node->value.integer = byte_size;
 
     Node *type_node = nodeAllocate();
-    // TODO: Solve the problem with `type`
     type_node->type = type;
     type_node->children = size_node;
 
@@ -275,8 +289,9 @@ void nodeCopy(Node *a, Node *b) {
         b->value = a->value;
         break;
     case NodeType::SYMBOL:
-        // TODO: Change `strdup`
-        b->value.symbol = strdup(a->value.symbol);
+        size_t length = strlen(a->value.symbol);
+        b->value.symbol = new char[length + 1];
+        std::strcpy(b->value.symbol, a->value.symbol);
         assert(b->value.symbol && "nodeCopy(): Could not allocate memory for new symbol");
         break;
     }
@@ -301,9 +316,8 @@ parsingContext *parseContextCreate(){
     assert(ctx && "Could not allocate for parsing context.");
     ctx->types = environmentCreate(nullptr);
     Error err = nodeAddType(ctx->types, NodeType::INTEGER, nodeSymbol("integer"), sizeof(long long));
-    if(err.type != ErrorType::NONE){
+    if(err.type != ErrorType::NONE)
         std::cout << "ERROR: Failed to set built-in type in types environment.\n";
-    }
     ctx->variables = environmentCreate(nullptr);
     return ctx;
 }
@@ -363,15 +377,15 @@ Error ExpectReturnValue::expect(ExpectReturnValue &expected, const std::string &
     return {};
 }
 
-// #define EXPECT(expected, expected_string, current_token, current_length, end)  \
-//   expected = lexExpect(expected_string, &current_token, &current_length, end); \
-//   if (expected.err.type != ErrorType::NONE) { return expected.err; }           \
-//   if (expected.done) { return ok; }
+#define EXPECT(expected, expected_string, current_token, current_length, end)  \
+  expected = lexExpect(expected_string, &current_token, &current_length, end); \
+  if (expected.err.type != ErrorType::NONE) { return expected.err; }           \
+  if (expected.done) { return ok; }
 
 bool parseInteger(Token *token, Node *node){
     if(!token || !node)
         return false;
-    char *end;
+    char *end = nullptr;
     /// Remove the condition for 0, if that becomes redundant  
     if(token->end - token->begin == 1 && *(token->begin) == '0'){
         node->type = NodeType::INTEGER;
@@ -394,6 +408,9 @@ Error parseExpr(parsingContext *context, char* source, char **end, Node *result)
     current_token.begin = source;
     current_token.end   = source;
     Error err = ok;
+
+    // Node *working_result = result;
+
     while ((err = lexAdvance(&current_token, &token_length, end)).type == ErrorType::NONE) {
         // std::cout << "lexed: ";
         // printToken(current_token);
@@ -419,7 +436,7 @@ Error parseExpr(parsingContext *context, char* source, char **end, Node *result)
             if(expected.found){
                 Node *variable_binding = nodeAllocate();
                 if(!environmentGet(*context->variables, symbol, variable_binding)){
-                    std::cout << "ID of undeclared variable: " << symbol->value.symbol << '\n';
+                    std::cout << "ID of undeclared variable: \"" << symbol->value.symbol << "\"\n";
                     err.prepareError(ErrorType::GENERIC, "Reassignment of a variable that has not been declared!");
                     return err;
                 }                    
@@ -452,7 +469,7 @@ Error parseExpr(parsingContext *context, char* source, char **end, Node *result)
             }
             Node *variable_binding = nodeAllocate();
             if(environmentGet(*context->variables, symbol, variable_binding)){
-                std::cout << "ID of redefined variable: " << symbol->value.symbol << '\n';
+                std::cout << "ID of redefined variable: \"" << symbol->value.symbol << "\"\n";
                 err.prepareError(ErrorType::GENERIC, "Redefinition of variable!");
                 return err;
             }
@@ -477,7 +494,6 @@ Error parseExpr(parsingContext *context, char* source, char **end, Node *result)
                 err.prepareError(ErrorType::GENERIC, "Failed to define variable!");
                 return err;
             }
-
             err = expected.expect(expected, "=", current_token, token_length, end);
             if(err.type != ErrorType::NONE)
                 return err;
@@ -491,8 +507,8 @@ Error parseExpr(parsingContext *context, char* source, char **end, Node *result)
                 *value_expression = *assigned_expr;
                 delete assigned_expr;
             }
+            // std::cout << std::string(current_token.begin, current_token.end - current_token.begin) << "123\n";
             return ok;
-        
         }
         
         std::cout << "Unrecognized token: ";
