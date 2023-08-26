@@ -189,7 +189,7 @@ Node *nodeSymbolFromBuffer(char *buffer, size_t length) {
     char *symbol_string = new char[length + 1];
     assert(symbol_string && "Could not allocate memory for symbol string.");
     // TODO: Don't use `memset` built-in function
-    memcpy(symbol_string, buffer, length);
+    std::memcpy(symbol_string, buffer, length);
     symbol_string[length] = '\0';
     Node *symbol = nodeAllocate();
     symbol->type = NodeType::SYMBOL;
@@ -374,13 +374,8 @@ Error ExpectReturnValue::expect(ExpectReturnValue &expected, const std::string &
         return expected.err;
     if(expected.done)
         return ok;
-    return {};
+    return {ErrorType::NONE, "Continue"};
 }
-
-#define EXPECT(expected, expected_string, current_token, current_length, end)  \
-  expected = lexExpect(expected_string, &current_token, &current_length, end); \
-  if (expected.err.type != ErrorType::NONE) { return expected.err; }           \
-  if (expected.done) { return ok; }
 
 bool parseInteger(Token *token, Node *node){
     if(!token || !node)
@@ -391,7 +386,7 @@ bool parseInteger(Token *token, Node *node){
         node->type = NodeType::INTEGER;
         node->value.integer = 0;
     // TODO: Change `strtoll`
-    } else if((node->value.integer = strtoll(token->begin, &end, 10)) != 0){
+    } else if((node->value.integer = std::strtoll(token->begin, &end, 10)) != 0){
         if(end != token->end)
             return false;
         node->type = NodeType::INTEGER;
@@ -423,16 +418,10 @@ Error parseExpr(parsingContext *context, char* source, char **end, Node *result)
         Node *symbol = nodeSymbolFromBuffer(current_token.begin, token_length);
 
         err = expected.expect(expected, ":", current_token, token_length, end);
-        if(err.type != ErrorType::NONE)
-            return err;
-        // expected.expect(":", current_token, token_length, end);
-        // EXPECT(expected, ":", current_token, token_length, end);
+        if (err.msg != "Continue") { return err; }
         if(expected.found){
             err = expected.expect(expected, "=", current_token, token_length, end);
-            if(err.type != ErrorType::NONE)
-                return err;
-            // expected.expect("=", current_token, token_length, end);
-            // EXPECT(expected, "=", current_token, token_length, end);
+            if (err.msg != "Continue") { return err; }
             if(expected.found){
                 Node *variable_binding = nodeAllocate();
                 if(!environmentGet(*context->variables, symbol, variable_binding)){
@@ -495,10 +484,7 @@ Error parseExpr(parsingContext *context, char* source, char **end, Node *result)
                 return err;
             }
             err = expected.expect(expected, "=", current_token, token_length, end);
-            if(err.type != ErrorType::NONE)
-                return err;
-            // expected.expect("=", current_token, token_length, end);
-            // EXPECT(expected, "=", current_token, token_length, end);
+            if (err.msg != "Continue") { return err; }
             if(expected.found){
                 Node *assigned_expr = nodeAllocate();
                 err = parseExpr(context, current_token.end, end, assigned_expr);
@@ -507,7 +493,6 @@ Error parseExpr(parsingContext *context, char* source, char **end, Node *result)
                 *value_expression = *assigned_expr;
                 delete assigned_expr;
             }
-            // std::cout << std::string(current_token.begin, current_token.end - current_token.begin) << "123\n";
             return ok;
         }
         
