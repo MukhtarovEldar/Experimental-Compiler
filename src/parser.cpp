@@ -26,23 +26,6 @@ bool commentAtBeginning(Token token){
     return false;
 }
 
-// bool commentAtBeginning(Token token) {
-
-//     return std::strchr(comment_delimiters, *(token.begin)) != nullptr;
-// }
-
-// bool commentAtBeginning(Token token) {
-//     const std::string comment_delimiters = ";#";
-
-//     for (char delimiter : comment_delimiters) {
-//         if (*(token.begin) == delimiter) {
-//             return true;
-//         }
-//     }
-    
-//     return false;
-// }
-
 Error lex(char* source, Token *token) {
     Error err = ok;
     if (!source || !token) {
@@ -50,26 +33,23 @@ Error lex(char* source, Token *token) {
         return err;
     }
     token->begin = source;
-    // TODO: write your own function for `strspn`
-    token->begin += strspn(token->begin, whitespace);
+    token->begin += std::strspn(token->begin, whitespace);
     token->end = token->begin;
     if (*(token->end) == '\0')
         return err;
     while(commentAtBeginning(*token)){
-        // TODO: write your own function for `strpbrk`
-        token->begin = strpbrk(token->begin, "\n");
+        token->begin = std::strpbrk(token->begin, "\n");
         if (!token->begin) {
             token->end = token->begin;
             return err;
         }
-        token->begin += strspn(token->begin, whitespace);
+        token->begin += std::strspn(token->begin, whitespace);
         token->end = token->begin;
     }
     if (*(token->end) == '\0')
         return err;
     
-    // TODO: write your own function for `strcspn`
-    token->end += strcspn(token->begin, delimiters);
+    token->end += std::strcspn(token->begin, delimiters);
     if (token->end == token->begin) {
         token->end += 1;
     }
@@ -135,8 +115,7 @@ bool nodeCompare(Node *a, Node *b){
             break;
         case NodeType::SYMBOL:
             if (a->value.symbol && b->value.symbol)
-                // TODO: write your own function for `strcmp`
-                if (strcmp(a->value.symbol, b->value.symbol) == false)
+                if (std::strcmp(a->value.symbol, b->value.symbol) == false)
                     return true;
             else if (!a->value.symbol && !b->value.symbol)
                 return true;
@@ -176,8 +155,6 @@ Node *nodeInteger(long long value){
 Node *nodeSymbol(const char *symbol_string){
     Node *symbol = nodeAllocate();
     symbol->type = NodeType::SYMBOL;
-    // TODO: strdup is deprecated, use other alternatives
-    // symbol->value.symbol = strdup(symbol_string);
     size_t symbol_length = strlen(symbol_string);
     symbol->value.symbol = new char[symbol_length + 1];
     std::strcpy(symbol->value.symbol, symbol_string);
@@ -188,7 +165,6 @@ Node *nodeSymbolFromBuffer(char *buffer, size_t length) {
     assert(buffer && "Can not create AST symbol node from NULL buffer.");
     char *symbol_string = new char[length + 1];
     assert(symbol_string && "Could not allocate memory for symbol string.");
-    // TODO: Don't use `memset` built-in function
     std::memcpy(symbol_string, buffer, length);
     symbol_string[length] = '\0';
     Node *symbol = nodeAllocate();
@@ -385,7 +361,6 @@ bool parseInteger(Token *token, Node *node){
     if(token->end - token->begin == 1 && *(token->begin) == '0'){
         node->type = NodeType::INTEGER;
         node->value.integer = 0;
-    // TODO: Change `strtoll`
     } else if((node->value.integer = std::strtoll(token->begin, &end, 10)) != 0){
         if(end != token->end)
             return false;
@@ -404,7 +379,7 @@ Error parseExpr(parsingContext *context, char* source, char **end, Node *result)
     current_token.end   = source;
     Error err = ok;
 
-    // Node *working_result = result;
+    Node *working_result = result;
 
     while ((err = lexAdvance(&current_token, &token_length, end)).type == ErrorType::NONE) {
         // std::cout << "lexed: ";
@@ -412,7 +387,7 @@ Error parseExpr(parsingContext *context, char* source, char **end, Node *result)
         // std::cout << '\n';
         if(token_length == 0)
             return ok;
-        if(parseInteger(&current_token, result))
+        if(parseInteger(&current_token, working_result))
             return ok;
         
         Node *symbol = nodeSymbolFromBuffer(current_token.begin, token_length);
@@ -428,22 +403,17 @@ Error parseExpr(parsingContext *context, char* source, char **end, Node *result)
                     std::cout << "ID of undeclared variable: \"" << symbol->value.symbol << "\"\n";
                     err.prepareError(ErrorType::GENERIC, "Reassignment of a variable that has not been declared!");
                     return err;
-                }                    
-                Node *reassign_expr = nodeAllocate();
-                err = parseExpr(context, current_token.end, end, reassign_expr);
-                if (err.type != ErrorType::NONE)
-                    return err;
+                }
+                delete variable_binding;
                 
-                Node *var_reassign = nodeAllocate();
-                var_reassign->type = NodeType::VARIABLE_REASSIGNMENT;
+                working_result->type = NodeType::VARIABLE_REASSIGNMENT;
+                nodeAddChild(working_result, symbol);
 
-                nodeAddChild(var_reassign, symbol);
-                nodeAddChild(var_reassign, reassign_expr);
+                Node *reassign_expr = nodeAllocate();
+                nodeAddChild(working_result, reassign_expr);
 
-                *result = *var_reassign;
-                delete var_reassign;
-
-                return ok;
+                working_result = reassign_expr;
+                continue;
             }
             err = lexAdvance(&current_token, &token_length, end);
             if(err.type != ErrorType::NONE)
@@ -451,29 +421,27 @@ Error parseExpr(parsingContext *context, char* source, char **end, Node *result)
             if(token_length == 0)
                 break;
             Node *type_symbol = nodeSymbolFromBuffer(current_token.begin, token_length);
-            if(environmentGet(*context->types, type_symbol, result) == 0){
+            Node *type_value = nodeAllocate();
+            if(environmentGet(*context->types, type_symbol, type_value) == 0){
                 err.prepareError(ErrorType::TYPE, "Invalid type within variable declaration.");
                 std::cout << "\nINVALID TYPE: " << type_symbol->value.symbol << '\n';
                 return err;
             }
+            delete type_value;
+
             Node *variable_binding = nodeAllocate();
             if(environmentGet(*context->variables, symbol, variable_binding)){
                 std::cout << "ID of redefined variable: \"" << symbol->value.symbol << "\"\n";
                 err.prepareError(ErrorType::GENERIC, "Redefinition of variable!");
                 return err;
             }
-            delete variable_binding;
 
-            Node *var_decl = nodeAllocate();
-            var_decl->type = NodeType::VARIABLE_DECLARATION;
+            working_result->type = NodeType::VARIABLE_DECLARATION;
 
             Node *value_expression = nodeNone();
 
-            nodeAddChild(var_decl, symbol);
-            nodeAddChild(var_decl, value_expression);
-
-            *result = *var_decl;
-            delete var_decl;
+            nodeAddChild(working_result, symbol);
+            nodeAddChild(working_result, value_expression);
 
             Node *symbol_for_env = nodeAllocate();
             nodeCopy(symbol, symbol_for_env);
@@ -486,12 +454,8 @@ Error parseExpr(parsingContext *context, char* source, char **end, Node *result)
             err = expected.expect(expected, "=", current_token, token_length, end);
             if (err.msg != "Continue") { return err; }
             if(expected.found){
-                Node *assigned_expr = nodeAllocate();
-                err = parseExpr(context, current_token.end, end, assigned_expr);
-                if(err.type != ErrorType::NONE)
-                    return err;
-                *value_expression = *assigned_expr;
-                delete assigned_expr;
+                working_result = value_expression;
+                continue;
             }
             return ok;
         }

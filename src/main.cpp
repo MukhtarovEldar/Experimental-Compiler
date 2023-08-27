@@ -19,7 +19,7 @@ int main(int argc, char **argv) {
     }
     char *contents = FileContents(argv[1]);
     assert(contents && "Could not allocate buffer for file contents.");
-    if(contents){
+    if (contents) {
         Error err = ok;
         parsingContext *context = parseContextCreate();
         Node *program = nodeAllocate();
@@ -27,27 +27,26 @@ int main(int argc, char **argv) {
         char *contents_it = contents;
         for(;;){
             Node *expression = nodeAllocate();
-            err = parseExpr(context, contents_it, &contents_it, expression);
             nodeAddChild(program, expression);
-            if (err.type != ErrorType::NONE) {
+            err = parseExpr(context, contents_it, &contents_it, expression);
+            if(err.type != ErrorType::NONE){
                 printError(err);
                 break;
             }
-            if (!(*contents_it))
+            if(!(*contents_it))
                 break;
         }
-
         printNode(program, 0);
         std::cout << '\n';
 
         if (err.type == ErrorType::NONE) {
             std::cout << "Generating code!\n";
 
-            err = codegen_program(CodegenOutputFormat::DEFAULT, context, program);
-            printError(err);
+            codegen_program(CodegenOutputFormat::DEFAULT, context, program);
+
             std::cout << "Code generated.\n";
         }
-        
+
         deleteNode(program);
 
         delete[] contents;
