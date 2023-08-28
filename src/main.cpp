@@ -21,7 +21,7 @@ int main(int argc, char **argv) {
     assert(contents && "Could not allocate buffer for file contents.");
     if (contents) {
         Error err = ok;
-        parsingContext *context = parseContextCreate();
+        ParsingContext *context = parseContextDefaultCreate();
         Node *program = nodeAllocate();
         program->type = NodeType::PROGRAM;
         char *contents_it = contents;
@@ -42,7 +42,8 @@ int main(int argc, char **argv) {
         if (err.type == ErrorType::NONE) {
             std::cout << "Generating code!\n";
 
-            codegen_program(CodegenOutputFormat::DEFAULT, context, program);
+            err = codegen_program(CodegenOutputFormat::DEFAULT, context, program);
+            printError(err);
 
             std::cout << "Code generated.\n";
         }

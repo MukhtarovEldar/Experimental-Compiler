@@ -4,9 +4,9 @@
 #include <cstddef>
 #include "error.h"
 
-// typedef struct Environment Environment;
+// typedef struct struct Environment struct Environment;
 
-struct Token{
+struct Token {
     char *begin;
     char *end;
     Token *next;
@@ -20,6 +20,7 @@ enum class NodeType {
     NONE = 0,
     INTEGER,
     SYMBOL,
+    FUNCTION,
     VARIABLE_DECLARATION,
     VARIABLE_DECLARATION_INITIALIZED,
     VARIABLE_REASSIGNMENT,
@@ -62,13 +63,12 @@ void printNode(Node *node, size_t indent_level);
 void deleteNode(Node *root);
 void nodeCopy(Node *a, Node *b);
 
-struct parsingContext{
-    // struct parsingContext *parent;
-    struct Environment *types;
-    struct Environment *variables;
-};
+// struct ParsingContext{
+//     // struct ParsingContext *parent;
+//     struct struct Environment *types;
+//     struct struct Environment *variables;
+// };
 
-parsingContext *parseContextCreate();
 bool tokenStringEqual(const char *string, Token *token);
 
 struct ExpectReturnValue {
@@ -82,6 +82,25 @@ struct ExpectReturnValue {
 ExpectReturnValue lexExpect(const std::string &expected, Token *current, size_t *current_length, char **end);
 
 bool parseInteger(Token *token, Node *node);
-Error parseExpr(parsingContext *context, char* source, char **end, Node* result);
+
+struct ParsingStack {
+    Node *operation;
+    Node *result;
+};
+
+struct ParsingContext {
+    struct ParsingContext *parent;
+    Node *operation;
+    struct Environment *types;
+    struct Environment *variables;
+    struct Environment *functions;
+};
+
+Error parseGetType(ParsingContext *context, Node *id, Node *result);
+
+ParsingContext *parseContextCreate(ParsingContext *parent);
+ParsingContext *parseContextDefaultCreate();
+
+Error parseExpr(ParsingContext *context, char* source, char **end, Node* result);
 
 #endif /* COMPILER_PARSER_H */
