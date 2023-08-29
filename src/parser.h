@@ -63,12 +63,6 @@ void printNode(Node *node, size_t indent_level);
 void deleteNode(Node *root);
 void nodeCopy(Node *a, Node *b);
 
-// struct ParsingContext{
-//     // struct ParsingContext *parent;
-//     struct struct Environment *types;
-//     struct struct Environment *variables;
-// };
-
 bool tokenStringEqual(const char *string, Token *token);
 
 struct ExpectReturnValue {
@@ -84,6 +78,7 @@ ExpectReturnValue lexExpect(const std::string &expected, Token *current, size_t 
 bool parseInteger(Token *token, Node *node);
 
 struct ParsingStack {
+    struct ParsingContext *parent;
     Node *operation;
     Node *result;
 };
@@ -91,6 +86,7 @@ struct ParsingStack {
 struct ParsingContext {
     struct ParsingContext *parent;
     Node *operation;
+    Node *result;
     struct Environment *types;
     struct Environment *variables;
     struct Environment *functions;

@@ -297,6 +297,8 @@ ParsingContext *parseContextCreate(ParsingContext *parent){
     ParsingContext *ctx = new ParsingContext();
     assert(ctx && "Could not allocate for parsing context.");
     ctx->parent = parent;
+    ctx->operation = nullptr;
+    ctx->result = nullptr;
     ctx->types = environmentCreate(nullptr);
     ctx->variables = environmentCreate(nullptr);
     ctx->functions = environmentCreate(nullptr);
@@ -401,7 +403,6 @@ bool parseInteger(Token *token, Node *node){
 
 Error parseExpr(ParsingContext *context, char* source, char **end, Node *result) {
     ExpectReturnValue expected;
-    size_t token_cnt = 0;
     size_t token_length = 0;
     Token current_token;
     current_token.begin = source;
@@ -513,12 +514,12 @@ Error parseExpr(ParsingContext *context, char* source, char **end, Node *result)
                 nodeAddChild(function_body, function_first_expression);
                 nodeAddChild(working_result, function_body);
                 working_result = function_first_expression;
+                context->result = working_result;
                 continue;
             } else {
                 err = expected.expect(expected, ":", current_token, token_length, end);
                 if (err.msg != "Continue") { return err; }
                 if (expected.found) {
-
                     err = expected.expect(expected, "=", current_token, token_length, end);
                     if (err.msg != "Continue") { return err; }
                     if (expected.found) {
@@ -545,7 +546,7 @@ Error parseExpr(ParsingContext *context, char* source, char **end, Node *result)
                     Node *type_symbol = nodeSymbolFromBuffer(current_token.begin, token_length);
                     Node *type_value = nodeAllocate();
                     parseGetType(context, type_symbol, type_value);
-                    if (*type_value->isNone()) {
+                    if ((*type_value).isNone()) {
                         err.prepareError(ErrorType::TYPE, "Invalid type within variable declaration");
                         std::cout << "\nINVALID TYPE: " << type_symbol->value.symbol << '\n';
                         return err;
@@ -569,8 +570,8 @@ Error parseExpr(ParsingContext *context, char* source, char **end, Node *result)
 
                     Node *symbol_for_env = nodeAllocate();
                     nodeCopy(symbol, symbol_for_env);
-                    bool status = environmentSet(context->variables, symbol_for_env, type_symbol);
-                    if (status != false) {
+                    int status = environmentSet(context->variables, symbol_for_env, type_symbol);
+                    if (status != 1) {
                         std::cout << "Variable: " << symbol_for_env->value.symbol << ", status: " << status << '\n';
                         err.prepareError(ErrorType::GENERIC, "Failed to define variable!");
                         return err;
@@ -604,88 +605,11 @@ Error parseExpr(ParsingContext *context, char* source, char **end, Node *result)
             err = expected.expect(expected, "}", current_token, token_length, end);
             if (err.msg != "Continue") { return err; }
             if (expected.found) { break; }
-        }
-        return ok;
-    }
 
+            context->result->next_child = nodeAllocate();
+            working_result = context->result->next_child;
+            context->result = working_result;
+        }
+    }
     return err;
 }
-
-//         err = expected.expect(expected, ":", current_token, token_length, end);
-//         if (err.msg != "Continue") { return err; }
-//         if(expected.found){
-//             err = expected.expect(expected, "=", current_token, token_length, end);
-//             if (err.msg != "Continue") { return err; }
-//             if(expected.found){
-//                 Node *variable_binding = nodeAllocate();
-//                 if(!environmentGet(*context->variables, symbol, variable_binding)){
-//                     std::cout << "ID of undeclared variable: \"" << symbol->value.symbol << "\"\n";
-//                     err.prepareError(ErrorType::GENERIC, "Reassignment of a variable that has not been declared!");
-//                     return err;
-//                 }
-//                 delete variable_binding;
-                
-//                 working_result->type = NodeType::VARIABLE_REASSIGNMENT;
-//                 nodeAddChild(working_result, symbol);
-
-//                 Node *reassign_expr = nodeAllocate();
-//                 nodeAddChild(working_result, reassign_expr);
-
-//                 working_result = reassign_expr;
-//                 continue;
-//             }
-//             err = lexAdvance(&current_token, &token_length, end);
-//             if(err.type != ErrorType::NONE)
-//                 return err;
-//             if(token_length == 0)
-//                 break;
-//             Node *type_symbol = nodeSymbolFromBuffer(current_token.begin, token_length);
-//             Node *type_value = nodeAllocate();
-//             if(environmentGet(*context->types, type_symbol, type_value) == 0){
-//                 err.prepareError(ErrorType::TYPE, "Invalid type within variable declaration.");
-//                 std::cout << "\nINVALID TYPE: " << type_symbol->value.symbol << '\n';
-//                 return err;
-//             }
-//             delete type_value;
-
-//             Node *variable_binding = nodeAllocate();
-//             if(environmentGet(*context->variables, symbol, variable_binding)){
-//                 std::cout << "ID of redefined variable: \"" << symbol->value.symbol << "\"\n";
-//                 err.prepareError(ErrorType::GENERIC, "Redefinition of variable!");
-//                 return err;
-//             }
-
-//             working_result->type = NodeType::VARIABLE_DECLARATION;
-
-//             Node *value_expression = nodeNone();
-
-//             nodeAddChild(working_result, symbol);
-//             nodeAddChild(working_result, value_expression);
-
-//             Node *symbol_for_env = nodeAllocate();
-//             nodeCopy(symbol, symbol_for_env);
-//             bool status = environmentSet(context->variables, symbol_for_env, type_symbol);
-//             if(status != 1){
-//                 std::cout << "Variable: " << symbol_for_env->value.symbol << ", status: " << status << '\n';
-//                 err.prepareError(ErrorType::GENERIC, "Failed to define variable!");
-//                 return err;
-//             }
-//             err = expected.expect(expected, "=", current_token, token_length, end);
-//             if (err.msg != "Continue") { return err; }
-//             if(expected.found){
-//                 working_result = value_expression;
-//                 continue;
-//             }
-//             return ok;
-//         }
-        
-//         std::cout << "Unrecognized token: ";
-//         printToken(current_token);
-//         std::cout << '\n';
-
-//         err.prepareError(ErrorType::SYNTAX, "Unrecognized token reached during parsing");
-//         return err;
-//     }
-    
-//     return err;
-// }
