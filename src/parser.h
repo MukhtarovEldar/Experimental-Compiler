@@ -21,6 +21,7 @@ enum class NodeType {
     INTEGER,
     SYMBOL,
     FUNCTION,
+    FUNCTION_CALL,
     VARIABLE_DECLARATION,
     VARIABLE_DECLARATION_INITIALIZED,
     VARIABLE_REASSIGNMENT,
@@ -98,5 +99,6 @@ ParsingContext *parseContextCreate(ParsingContext *parent);
 ParsingContext *parseContextDefaultCreate();
 
 Error parseExpr(ParsingContext *context, char* source, char **end, Node* result);
+Error parseProgram(char *filepath, ParsingContext *context, Node *result);
 
 #endif /* COMPILER_PARSER_H */

@@ -10,53 +10,36 @@
 #include "environment.h"
 #include "parser.h"
 
-void displayUsage(char **argv);
+void displayUsage(char **argv) {
+    std::cout << "Usage: " << argv[0] << " <file_path>";
+}
 
 int main(int argc, char **argv) {
     if (argc < 2) {
         displayUsage(argv);
-        std::exit(0);
+        return 0;
     }
-    char *contents = FileContents(argv[1]);
-    assert(contents && "Could not allocate buffer for file contents.");
-    if (contents) {
-        Error err = ok;
-        ParsingContext *context = parseContextDefaultCreate();
-        Node *program = nodeAllocate();
-        program->type = NodeType::PROGRAM;
-        char *contents_it = contents;
-        for(;;){
-            Node *expression = nodeAllocate();
-            nodeAddChild(program, expression);
-            err = parseExpr(context, contents_it, &contents_it, expression);
-            if(err.type != ErrorType::NONE){
-                printError(err);
-                break;
-            }
-            if(!(*contents_it))
-                break;
-        }
-        printNode(program, 0);
-        std::cout << '\n';
 
-        if (err.type == ErrorType::NONE) {
-            std::cout << "Generating code!\n";
+    Node *program = nodeAllocate();
+    ParsingContext *context = parseContextDefaultCreate();
+    Error err = parseProgram(argv[1], context, program);
 
-            err = codegen_program(CodegenOutputFormat::DEFAULT, context, program);
-            printError(err);
+    printNode(program, 0);
+    std::cout << '\n';
 
-            std::cout << "Code generated.\n";
-        }
-
-        deleteNode(program);
-
-        delete[] contents;
+    if(err.type != ErrorType::NONE) {
+        printError(err);
+        return 1;
     }
+
+    err = codegen_program(CodegenOutputFormat::DEFAULT, context, program);
+    if(err.type != ErrorType::NONE) {
+        printError(err);
+        return 2;
+    }
+
+    deleteNode(program);
 
     return 0;
 }
 
-void displayUsage(char **argv)
-{
-    std::cout << "Usage: " << argv[0] << " <file_path>";
-}

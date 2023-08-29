@@ -1,9 +1,10 @@
 #include "parser.h"
 
-#include <iostream>
-#include <cassert>
 #include "error.h"
 #include "environment.h"
+#include "file_io.h"
+#include <iostream>
+#include <cassert>
 #include <cstdlib>
 #include <string>
 #include <cstring>
@@ -101,7 +102,7 @@ bool nodeCompare(Node *a, Node *b){
             return true;
         return false;
     }
-    assert(static_cast<int>(NodeType::MAX) == 9 && "nodeCompare() must handle all node types.");
+    assert(static_cast<int>(NodeType::MAX) == 10 && "nodeCompare() must handle all node types.");
     if(a->type != b->type)
         return false;
     switch(a->type){
@@ -126,6 +127,9 @@ bool nodeCompare(Node *a, Node *b){
         case NodeType::FUNCTION:
             std::cout << "TODO: nodeCompare() FUNCTION\n";
             break;
+        case NodeType::FUNCTION_CALL:
+            std::cout << "TODO: nodeCompare() FUNCTION CALL\n";
+            break;  
         case NodeType::VARIABLE_REASSIGNMENT:
             std::cout << "TODO: nodeCompare() VARIABLE REASSIGNMENT\n";
             break;
@@ -204,7 +208,7 @@ void printNode(Node *node, size_t indent_level){
     for(size_t i = 0; i < indent_level; i++){
         std::cout << ' ';
     }
-    assert(static_cast<int>(NodeType::MAX) == 9 && "printNode() must handle all node types.");
+    assert(static_cast<int>(NodeType::MAX) == 10 && "printNode() must handle all node types.");
     switch(node->type){
         default:
             std::cout << "UNKNOWN";
@@ -237,6 +241,9 @@ void printNode(Node *node, size_t indent_level){
             break;
         case NodeType::FUNCTION:
             std::cout << "FUNCTION";
+            break;
+        case NodeType::FUNCTION_CALL:
+            std::cout << "FUNCTION CALL";
             break;
     }
     std::cout << '\n';
@@ -357,7 +364,6 @@ ExpectReturnValue lexExpect(const std::string &expected, Token *current, size_t 
         *end = end_value;
         *current = current_copy;
         *current_length = current_length_copy;
-        return out;
     }
     return out;
 }
@@ -435,6 +441,7 @@ Error parseExpr(ParsingContext *context, char* source, char **end, Node *result)
                 }
 
                 Node *parameter_list = nodeAllocate();
+                nodeAddChild(working_result, parameter_list);
 
                 for(;;){
                     err = expected.expect(expected, ")", current_token, token_length, end);
@@ -479,7 +486,6 @@ Error parseExpr(ParsingContext *context, char* source, char **end, Node *result)
                     }
                     break;
                 }
-                nodeAddChild(working_result, parameter_list);
 
                 err = expected.expect(expected, ":", current_token, token_length, end);
                 if (err.msg != "Continue") { return err; }
@@ -585,6 +591,27 @@ Error parseExpr(ParsingContext *context, char* source, char **end, Node *result)
                     }
 
                     return ok;
+                } else {
+                    err = expected.expect(expected, "(", current_token, token_length, end);
+                    if (err.msg != "Continue") { return err; }
+                    if (expected.found) {
+                        working_result->type = NodeType::FUNCTION_CALL;
+                        nodeAddChild(working_result, symbol);
+                        Node *argument_list = nodeAllocate();
+                        Node *first_argument = nodeAllocate();
+                        nodeAddChild(argument_list, first_argument);
+                        nodeAddChild(working_result, argument_list);
+                        working_result = first_argument;
+
+                        context = parseContextCreate(context);
+                        context->operation = nodeSymbol("funcall");
+                        context->result = working_result;
+
+                        continue;
+
+                    } else {
+                        // TODO: Check if it's a variable access (defined variable)
+                    }
                 }
 
                 std::cout << "Unrecognized token: ";
@@ -604,12 +631,55 @@ Error parseExpr(ParsingContext *context, char* source, char **end, Node *result)
         if (std::strcmp(operation->value.symbol, "func") == 0) {
             err = expected.expect(expected, "}", current_token, token_length, end);
             if (err.msg != "Continue") { return err; }
-            if (expected.found) { break; }
+            if (expected.done || expected.found) { break; }
 
             context->result->next_child = nodeAllocate();
             working_result = context->result->next_child;
             context->result = working_result;
+            continue;
+        }
+        if (std::strcmp(operation->value.symbol, "funcall") == 0){
+            err = expected.expect(expected, ")", current_token, token_length, end);
+            if (err.msg != "Continue") { return err; }
+            if (expected.done || expected.found) { break; }
+            err = expected.expect(expected, ",", current_token, token_length, end);
+            if (err.msg != "Continue") { return err; }
+            if (expected.done || !expected.found) {
+                printToken(current_token);
+                err.prepareError(ErrorType::SYNTAX, "Parameter list expected closing parenthesis or comma for another parameter");
+                return err;
+            }
+
+            context->result->next_child = nodeAllocate();
+            working_result = context->result->next_child;
+            context->result = working_result;
+
+            continue;
         }
     }
     return err;
+}
+
+Error parseProgram(char *filepath, ParsingContext *context, Node *result) {
+    Error err = ok;
+    char *contents = FileContents(filepath);
+    if(!contents){
+        std::cout << "Filepath: " << filepath << '\n';
+        err.prepareError(ErrorType::GENERIC, "parseProgram(): Couldn't get file contents");
+        return err;
+    }
+    result->type = NodeType::PROGRAM;
+    char *contents_it = contents;
+    for(;;){
+        Node *expression = nodeAllocate();
+        nodeAddChild(result, expression);
+        err = parseExpr(context, contents_it, &contents_it, expression);
+        if (err.type != ErrorType::NONE) {
+            delete contents;
+            return err;
+        }
+        if (!(*contents_it)) { break; }
+    }
+    delete contents;
+    return ok;
 }
