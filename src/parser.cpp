@@ -116,7 +116,7 @@ bool nodeCompare(Node *a, Node *b){
             break;
         case NodeType::SYMBOL:
             if (a->value.symbol && b->value.symbol)
-                if (std::strcmp(a->value.symbol, b->value.symbol) == false)
+                if (strcmp(a->value.symbol, b->value.symbol) == false)
                     return true;
             else if (!a->value.symbol && !b->value.symbol)
                 return true;
@@ -424,10 +424,10 @@ Error parseExpr(ParsingContext *context, char* source, char **end, Node *result)
         if(token_length == 0)
             return ok;
         if(parseInteger(&current_token, working_result)){
-            return ok;
+            // return ok;
         } else {
             Node *symbol = nodeSymbolFromBuffer(current_token.begin, token_length);
-            if(std::strcmp("func", symbol->value.symbol) == 0){
+            if(strcmp("func", symbol->value.symbol) == 0){
                 working_result->type = NodeType::FUNCTION;
                 lexAdvance(&current_token, &token_length, end);
                 Node *function_name = nodeSymbolFromBuffer(current_token.begin, token_length);
@@ -474,9 +474,7 @@ Error parseExpr(ParsingContext *context, char* source, char **end, Node *result)
 
                     err = expected.expect(expected, ",", current_token, token_length, end);
                     if (err.msg != "Continue") { return err; }
-                    if (expected.found) {
-                        continue;
-                    }
+                    if (expected.found) { continue; }
 
                     err = expected.expect(expected, ")", current_token, token_length, end);
                     if (err.msg != "Continue") { return err; }
@@ -617,6 +615,7 @@ Error parseExpr(ParsingContext *context, char* source, char **end, Node *result)
                 std::cout << "Unrecognized token: ";
                 printToken(current_token);
                 std::cout << '\n';
+                std::cout << "--------------------------------" << '\n';
 
                 err.prepareError(ErrorType::SYNTAX, "Unrecognized token reached during parsing");
                 return err;
@@ -628,7 +627,8 @@ Error parseExpr(ParsingContext *context, char* source, char **end, Node *result)
             err.prepareError(ErrorType::TYPE, "Parsing context operation must be symbol. Likely internal error :(");
             return err;
         }
-        if (std::strcmp(operation->value.symbol, "func") == 0) {
+        std::cout << "---------------------------------\n";
+        if (strcmp(operation->value.symbol, "func") == 0) {
             err = expected.expect(expected, "}", current_token, token_length, end);
             if (err.msg != "Continue") { return err; }
             if (expected.done || expected.found) { break; }
@@ -638,7 +638,7 @@ Error parseExpr(ParsingContext *context, char* source, char **end, Node *result)
             context->result = working_result;
             continue;
         }
-        if (std::strcmp(operation->value.symbol, "funcall") == 0){
+        if (strcmp(operation->value.symbol, "funcall") == 0){
             err = expected.expect(expected, ")", current_token, token_length, end);
             if (err.msg != "Continue") { return err; }
             if (expected.done || expected.found) { break; }
@@ -675,11 +675,11 @@ Error parseProgram(char *filepath, ParsingContext *context, Node *result) {
         nodeAddChild(result, expression);
         err = parseExpr(context, contents_it, &contents_it, expression);
         if (err.type != ErrorType::NONE) {
-            delete contents;
+            delete[] contents;
             return err;
         }
         if (!(*contents_it)) { break; }
     }
-    delete contents;
+    delete[] contents;
     return ok;
 }
