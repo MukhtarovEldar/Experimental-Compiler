@@ -615,7 +615,6 @@ Error parseExpr(ParsingContext *context, char* source, char **end, Node *result)
                 std::cout << "Unrecognized token: ";
                 printToken(current_token);
                 std::cout << '\n';
-                std::cout << "--------------------------------" << '\n';
 
                 err.prepareError(ErrorType::SYNTAX, "Unrecognized token reached during parsing");
                 return err;
@@ -627,7 +626,6 @@ Error parseExpr(ParsingContext *context, char* source, char **end, Node *result)
             err.prepareError(ErrorType::TYPE, "Parsing context operation must be symbol. Likely internal error :(");
             return err;
         }
-        std::cout << "---------------------------------\n";
         if (strcmp(operation->value.symbol, "func") == 0) {
             err = expected.expect(expected, "}", current_token, token_length, end);
             if (err.msg != "Continue") { return err; }
